@@ -1,0 +1,641 @@
+<template>
+  <div class="pos-page">
+    <!-- Financial summary bar -->
+    <el-card shadow="never" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:4px 0">
+        <div style="text-align:center"><span style="color:#909399;font-size:12px">今日收入</span><br><span style="font-size:20px;font-weight:700;color:#409eff">¥{{ (profitData.total_revenue || 0).toFixed(2) }}</span></div>
+        <div style="color:#e6a23c;font-size:16px;font-weight:300;padding:0 2px">−</div>
+        <div style="text-align:center"><span style="color:#e6a23c;font-size:12px">分成</span><br><span style="font-size:20px;font-weight:700;color:#e6a23c">¥{{ (profitData.commissions || 0).toFixed(2) }}</span></div>
+        <div style="font-size:16px;font-weight:300;color:#909399;padding:0 2px">=</div>
+        <div style="text-align:center"><span style="color:#909399;font-size:12px">毛收入</span><br><span style="font-size:20px;font-weight:700;color:#606266">¥{{ (profitData.gross_revenue || 0).toFixed(2) }}</span></div>
+        <div style="font-size:16px;font-weight:300;color:#f56c6c;padding:0 2px">−</div>
+        <div style="text-align:center"><span style="color:#f56c6c;font-size:12px">高值药品耗材</span><br><span style="font-size:20px;font-weight:700;color:#f56c6c">¥{{ (profitData.high_value || 0).toFixed(2) }}</span></div>
+        <div style="font-size:16px;font-weight:300;color:#e6a23c;padding:0 2px">−</div>
+        <div style="text-align:center"><span style="color:#e6a23c;font-size:12px">一般支出</span><br><span style="font-size:20px;font-weight:700;color:#e6a23c">¥{{ (profitData.general || 0).toFixed(2) }}</span></div>
+        <div style="font-size:16px;font-weight:600;color:#606266;padding:0 2px">=</div>
+        <div style="text-align:center"><span style="font-size:12px;font-weight:600">净利润</span><br><span style="font-size:22px;font-weight:700;color:#67c23a">¥{{ (profitData.net_profit || 0).toFixed(2) }}</span></div>
+      </div>
+    </el-card>
+    <!-- Top: order composition + payment -->
+    <el-row :gutter="16">
+      <!-- Left: order composition -->
+      <el-col :span="14">
+        <!-- Customer selection -->
+        <el-card shadow="never" class="section-card">
+          <template #header>
+            <span style="font-weight:600;">客户信息</span>
+          </template>
+          <el-select
+            v-model="customerId"
+            filterable
+            remote
+            reserve-keyword
+            placeholder="搜索客户姓名或手机号"
+            :remote-method="searchCustomers"
+            :loading="customerLoading"
+            style="width:100%;"
+            @change="onCustomerChange"
+          >
+            <el-option
+              v-for="c in customerOptions"
+              :key="c.id"
+              :label="`${c.name} (${c.phone || '无电话'})`"
+              :value="c.id"
+            />
+          </el-select>
+        </el-card>
+
+        <!-- Treatment items -->
+        <el-card shadow="never" class="section-card">
+          <template #header>
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-weight:600;">治疗项目</span>
+              <el-button type="primary" size="small" @click="showItemPicker = true">
+                + 添加项目
+              </el-button>
+            </div>
+          </template>
+          <el-table :data="orderItems" stripe size="small" empty-text="尚未添加项目" style="width:100%;">
+            <el-table-column label="项目名称" min-width="140">
+              <template #default="{ row }">{{ row.item_name }}</template>
+            </el-table-column>
+            <el-table-column label="单价" width="130">
+              <template #default="{ row }">
+                <el-input-number
+                  v-model="row.unit_price"
+                  :min="0"
+                  :precision="2"
+                  size="small"
+                  controls-position="right"
+                  style="width:110px;"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="数量" width="100">
+              <template #default="{ row }">
+                <el-input-number
+                  v-model="row.quantity"
+                  :min="1"
+                  :max="99"
+                  size="small"
+                  controls-position="right"
+                  style="width:80px;"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="小计" width="100">
+              <template #default="{ row }">
+                ¥{{ (row.unit_price * row.quantity).toFixed(2) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="60" fixed="right">
+              <template #default="{ $index }">
+                <el-button text type="danger" size="small" @click="removeItem($index)">
+                  删除
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+
+        <!-- Discount -->
+        <el-card shadow="never" class="section-card">
+          <template #header>
+            <span style="font-weight:600;">优惠金额</span>
+          </template>
+          <el-input-number
+            v-model="discount"
+            :min="0"
+            :precision="2"
+            :max="subtotal"
+            controls-position="right"
+            style="width:160px;"
+          />
+          <span style="margin-left:12px;color:#909399;font-size:13px;">
+            最多 ¥{{ subtotal.toFixed(2) }}
+          </span>
+        </el-card>
+      </el-col>
+
+      <!-- Right: payment & summary -->
+      <el-col :span="10">
+        <el-card shadow="never" class="section-card">
+          <template #header>
+            <span style="font-weight:600;">结算</span>
+          </template>
+
+          <!-- Summary -->
+          <div class="summary-row">
+            <span>项目合计</span>
+            <span>¥{{ subtotal.toFixed(2) }}</span>
+          </div>
+          <div class="summary-row" style="color:#e6a23c;">
+            <span>优惠</span>
+            <span>-¥{{ discount.toFixed(2) }}</span>
+          </div>
+          <div class="summary-row summary-total">
+            <span>应付金额</span>
+            <span>¥{{ finalAmount.toFixed(2) }}</span>
+          </div>
+
+          <el-divider style="margin:12px 0;" />
+
+          <!-- Package deduction -->
+          <div style="margin-bottom:12px;">
+            <div style="font-weight:600;margin-bottom:8px;">划扣套餐</div>
+            <el-select
+              v-model="deductPackageId"
+              placeholder="选择客户的套餐"
+              style="width:100%;margin-bottom:8px;"
+              :disabled="!customerId"
+              @change="onPackageSelect"
+            >
+              <el-option
+                v-for="pkg in customerPackages"
+                :key="pkg.id"
+                :label="pkg.package_name"
+                :value="pkg.id"
+              />
+            </el-select>
+            <el-select
+              v-if="deductPackageId"
+              v-model="deductPackageItemId"
+              placeholder="选择套餐项目"
+              style="width:100%;margin-bottom:8px;"
+            >
+              <el-option
+                v-for="pi in selectedPackageItems"
+                :key="pi.id"
+                :label="`${pi.item_name} (剩余${pi.remaining_count}次)`"
+                :value="pi.id"
+              />
+            </el-select>
+            <el-button
+              size="small"
+              :disabled="!deductPackageItemId"
+              @click="applyPackageDeduction"
+            >
+              划扣到本单
+            </el-button>
+            <div v-if="appliedPackageDeductions.length" style="margin-top:8px;">
+              <el-tag
+                v-for="(d, i) in appliedPackageDeductions"
+                :key="i"
+                closable
+                size="small"
+                style="margin-right:6px;margin-bottom:4px;"
+                @close="removePackageDeduction(i)"
+              >
+                {{ d.package_name }} - {{ d.item_name }}
+              </el-tag>
+            </div>
+          </div>
+
+          <el-divider style="margin:12px 0;" />
+
+          <!-- Payment methods -->
+          <div style="margin-bottom:8px;">
+            <div style="font-weight:600;margin-bottom:8px;">支付方式</div>
+            <div
+              v-for="(pm, idx) in payments"
+              :key="idx"
+              style="display:flex;gap:8px;margin-bottom:8px;align-items:center;"
+            >
+              <el-select v-model="pm.pay_method" placeholder="支付方式" style="width:130px;">
+                <el-option label="余额" value="balance" />
+                <el-option label="赠送余额" value="gift_balance" />
+                <el-option label="微信" value="wechat" />
+                <el-option label="支付宝" value="alipay" />
+                <el-option label="现金" value="cash" />
+                <el-option label="银行卡" value="bank_card" />
+              </el-select>
+              <el-input-number
+                v-model="pm.amount"
+                :min="0"
+                :precision="2"
+                size="small"
+                controls-position="right"
+                style="width:140px;"
+              />
+              <el-button
+                text
+                type="danger"
+                size="small"
+                :disabled="payments.length === 1"
+                @click="removePayment(idx)"
+              >
+                删除
+              </el-button>
+            </div>
+            <el-button size="small" @click="addPayment">+ 添加支付方式</el-button>
+          </div>
+
+          <!-- Remaining -->
+          <div
+            :style="{
+              marginTop:'8px',
+              fontWeight:600,
+              color: remainingAmount > 0 ? '#e6a23c' : '#67c23a',
+            }"
+          >
+            剩余: ¥{{ remainingAmount.toFixed(2) }}
+          </div>
+
+          <!-- Checkout button -->
+          <el-button
+            type="primary"
+            size="large"
+            style="width:100%;margin-top:16px;"
+            :loading="checkoutLoading"
+            :disabled="!customerId || orderItems.length === 0 || remainingAmount > 0"
+            @click="handleCheckout"
+          >
+            结 账
+          </el-button>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- Today's orders -->
+    <el-card shadow="never" class="section-card" style="margin-top:16px;">
+      <template #header>
+        <span style="font-weight:600;">今日订单</span>
+      </template>
+      <el-table
+        :data="todayOrders"
+        stripe
+        size="small"
+        empty-text="暂无今日订单"
+        style="width:100%;"
+        @row-click="goToDetail"
+      >
+        <el-table-column prop="order_no" label="订单号" width="180" />
+        <el-table-column prop="customer_name" label="客户" width="120" />
+        <el-table-column label="金额" width="100">
+          <template #default="{ row }">
+            ¥{{ (row.total_amount || 0).toFixed(2) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="已支付" width="100">
+          <template #default="{ row }">
+            ¥{{ (row.paid_amount || 0).toFixed(2) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.status === 'paid'" type="success" size="small">已支付</el-tag>
+            <el-tag v-else-if="row.status === 'partial'" type="warning" size="small">部分支付</el-tag>
+            <el-tag v-else-if="row.status === 'refunded'" type="info" size="small">已退款</el-tag>
+            <el-tag v-else type="danger" size="small">待支付</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="时间" width="160" />
+        <el-table-column label="操作" width="80" fixed="right">
+          <template #default="{ row }">
+            <el-button text type="primary" size="small" @click.stop="goToDetail(row)">
+              详情
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <!-- Item picker dialog -->
+    <el-dialog v-model="showItemPicker" title="选择治疗项目" width="600px">
+      <el-table
+        ref="itemPickerTableRef"
+        :data="treatmentItems"
+        stripe
+        size="small"
+        style="width:100%;"
+      >
+        <el-table-column type="selection" width="45" />
+        <el-table-column prop="name" label="项目名称" min-width="140" />
+        <el-table-column label="默认价格" width="110">
+          <template #default="{ row }">
+            ¥{{ (row.default_price || 0).toFixed(2) }}
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="showItemPicker = false">取消</el-button>
+        <el-button type="primary" @click="confirmAddItems">确定添加</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import api from '../../api'
+import { createOrder, payOrder, getOrders } from '../../api/order'
+
+const router = useRouter()
+
+// ---- Customer ----
+const customerId = ref<number | null>(null)
+const customerOptions = ref<any[]>([])
+const customerLoading = ref(false)
+let customerSearchCache: any[] = []
+
+async function searchCustomers(query: string) {
+  if (!query) {
+    customerOptions.value = []
+    return
+  }
+  customerLoading.value = true
+  try {
+    const res = await api.get('/customers', { params: { q: query, size: 20 } })
+    customerOptions.value = res.data?.data || res.data || []
+    customerSearchCache = customerOptions.value
+  } catch {
+    // use cache if available
+    customerOptions.value = customerSearchCache
+  } finally {
+    customerLoading.value = false
+  }
+}
+
+const selectedCustomerName = computed(() => {
+  const found = customerOptions.value.find((c: any) => c.id === customerId.value)
+  return found ? found.name : ''
+})
+
+async function onCustomerChange() {
+  deductPackageId.value = null
+  deductPackageItemId.value = null
+  appliedPackageDeductions.value = []
+  customerPackages.value = []
+  if (customerId.value) {
+    await loadCustomerPackages()
+  }
+}
+
+// ---- Treatment Items ----
+const treatmentItems = ref<any[]>([])
+const showItemPicker = ref(false)
+const itemPickerTableRef = ref()
+
+onMounted(async () => {
+  await Promise.all([loadTreatmentItems(), loadTodayOrders()])
+})
+
+async function loadTreatmentItems() {
+  try {
+    const res = await api.get('/settings/items')
+    treatmentItems.value = res.data?.data || res.data || []
+  } catch {
+    treatmentItems.value = []
+  }
+}
+
+// ---- Order Items ----
+interface OrderItem {
+  treatment_item_id: number
+  item_name: string
+  unit_price: number
+  quantity: number
+}
+
+const orderItems = ref<OrderItem[]>([])
+
+function confirmAddItems() {
+  const tableRef = itemPickerTableRef.value
+  if (!tableRef) return
+  const selection = tableRef.getSelectionRows()
+  for (const item of selection) {
+    const exists = orderItems.value.find(
+      (oi) => oi.treatment_item_id === item.id,
+    )
+    if (exists) {
+      exists.quantity += 1
+    } else {
+      orderItems.value.push({
+        treatment_item_id: item.id,
+        item_name: item.name,
+        unit_price: item.default_price || 0,
+        quantity: 1,
+      })
+    }
+  }
+  showItemPicker.value = false
+}
+
+function removeItem(index: number) {
+  orderItems.value.splice(index, 1)
+}
+
+// ---- Computed ----
+const discount = ref(0)
+
+const subtotal = computed(() =>
+  orderItems.value.reduce((sum, item) => sum + item.unit_price * item.quantity, 0),
+)
+
+const packageDeductionTotal = computed(() =>
+  appliedPackageDeductions.value.reduce((sum, d) => sum + d.deduct_amount, 0),
+)
+
+const finalAmount = computed(() =>
+  Math.max(0, subtotal.value - discount.value - packageDeductionTotal.value),
+)
+
+// ---- Payment Methods ----
+interface PaymentRow {
+  pay_method: string
+  amount: number
+}
+
+const payments = ref<PaymentRow[]>([{ pay_method: 'cash', amount: 0 }])
+
+function addPayment() {
+  payments.value.push({ pay_method: 'wechat', amount: 0 })
+}
+
+function removePayment(index: number) {
+  if (payments.value.length > 1) {
+    payments.value.splice(index, 1)
+  }
+}
+
+const paymentTotal = computed(() =>
+  payments.value.reduce((sum, pm) => sum + (pm.amount || 0), 0),
+)
+
+const remainingAmount = computed(() =>
+  Math.max(0, finalAmount.value - paymentTotal.value),
+)
+
+// ---- Package Deduction ----
+const customerPackages = ref<any[]>([])
+const deductPackageId = ref<number | null>(null)
+const deductPackageItemId = ref<number | null>(null)
+const selectedPackageItems = ref<any[]>([])
+
+interface PackageDeduction {
+  package_id: number
+  package_item_id: number
+  package_name: string
+  item_name: string
+  deduct_amount: number
+}
+
+const appliedPackageDeductions = ref<PackageDeduction[]>([])
+
+async function loadCustomerPackages() {
+  if (!customerId.value) return
+  try {
+    const res = await api.get(`/customers/${customerId.value}/packages`)
+    customerPackages.value = res.data?.data || res.data || []
+  } catch {
+    customerPackages.value = []
+  }
+}
+
+function onPackageSelect(pkgId: number) {
+  const pkg = customerPackages.value.find((p) => p.id === pkgId)
+  selectedPackageItems.value = pkg?.items || []
+  deductPackageItemId.value = null
+}
+
+function applyPackageDeduction() {
+  if (!deductPackageId.value || !deductPackageItemId.value) return
+  const pkg = customerPackages.value.find((p) => p.id === deductPackageId.value)
+  const item = selectedPackageItems.value.find(
+    (i: any) => i.id === deductPackageItemId.value,
+  )
+  if (!pkg || !item) return
+
+  // Find the corresponding order item to get price
+  const orderItem = orderItems.value.find(
+    (oi) => oi.treatment_item_id === item.item_id,
+  )
+  const deductAmount = orderItem ? orderItem.unit_price : 0
+
+  appliedPackageDeductions.value.push({
+    package_id: deductPackageId.value,
+    package_item_id: deductPackageItemId.value,
+    package_name: pkg.package_name,
+    item_name: item.item_name,
+    deduct_amount: deductAmount,
+  })
+
+  // Reset selection
+  deductPackageId.value = null
+  deductPackageItemId.value = null
+  selectedPackageItems.value = []
+}
+
+function removePackageDeduction(index: number) {
+  appliedPackageDeductions.value.splice(index, 1)
+}
+
+// ---- Today's Orders ----
+const todayOrders = ref<any[]>([])
+
+async function loadTodayOrders() {
+  try {
+    const res = await getOrders({ date: 'today' })
+    todayOrders.value = res?.data || res || []
+  } catch {
+    todayOrders.value = []
+  }
+}
+
+function goToDetail(row: any) {
+  router.push(`/pos/${row.id}`)
+}
+
+// ---- Checkout ----
+const checkoutLoading = ref(false)
+
+async function handleCheckout() {
+  if (!customerId.value || orderItems.value.length === 0) return
+  if (remainingAmount.value > 0) {
+    ElMessage.warning(`尚有 ¥${remainingAmount.value.toFixed(2)} 未分配支付方式`)
+    return
+  }
+
+  checkoutLoading.value = true
+  try {
+    // 1. Create order
+    const orderPayload: any = {
+      customer_id: customerId.value,
+      items: orderItems.value.map((item) => ({
+        treatment_item_id: item.treatment_item_id,
+        unit_price: item.unit_price,
+        quantity: item.quantity,
+      })),
+      discount_amount: discount.value,
+      total_amount: finalAmount.value + paymentTotal.value,
+    }
+    const order = await createOrder(orderPayload)
+    const orderId = order.data?.id || order.id
+
+    // 2. Pay via package deductions
+    for (const d of appliedPackageDeductions.value) {
+      await api.post(`/orders/${orderId}/pay/package`, {
+        package_id: d.package_id,
+        package_item_id: d.package_item_id,
+      })
+    }
+
+    // 3. Pay via payment methods
+    const validPayments = payments.value.filter(
+      (pm) => pm.pay_method && pm.amount > 0,
+    )
+    if (validPayments.length > 0) {
+      await payOrder(orderId, { payments: validPayments })
+    }
+
+    ElMessage.success('结账成功')
+    resetOrder()
+    await loadTodayOrders()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.error || '结账失败')
+  } finally {
+    checkoutLoading.value = false
+  }
+}
+
+function resetOrder() {
+  customerId.value = null
+  orderItems.value = []
+  discount.value = 0
+  payments.value = [{ pay_method: 'cash', amount: 0 }]
+  appliedPackageDeductions.value = []
+  customerPackages.value = []
+  selectedPackageItems.value = []
+  deductPackageId.value = null
+  deductPackageItemId.value = null
+}
+</script>
+
+<style scoped>
+.pos-page {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.section-card {
+  margin-bottom: 16px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+.summary-total {
+  font-size: 18px;
+  font-weight: bold;
+  color: #303133;
+  border-top: 1px solid #ebeef5;
+  padding-top: 10px;
+  margin-top: 4px;
+}
+</style>

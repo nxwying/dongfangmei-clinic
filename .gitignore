@@ -1,0 +1,31 @@
+# Dependencies
+web/node_modules/
+
+# Build artifacts
+clinic-server
+web/dist/
+
+# OS files
+.DS_Store
+
+# Environment
+.env
+*.local
+
+# Server binary
+server
+
+# Project dist copies
+clinic-mgmt-dist*/
+clinic-mgmt-dist/
+
+# Runtime data
+data/
+
+# Installer build artifacts
+installer_build/
+*.dmg
+
+# Editor
+.vscode/
+.idea/

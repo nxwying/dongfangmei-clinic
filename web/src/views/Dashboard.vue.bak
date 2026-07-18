@@ -1,0 +1,400 @@
+<template>
+  <div style="max-width:1200px;margin:0 auto">
+
+    <!-- Row 1: KPI cards (3 cards, 本月净利润已删除) -->
+    <el-row :gutter="12" style="margin-bottom:12px">
+      <el-col :span="8">
+        <el-card shadow="never">
+          <div style="text-align:center;padding:10px 0">
+            <div style="font-size:26px;font-weight:700;color:#409eff">¥{{ today.revenue.toFixed(2) }}</div>
+            <div style="font-size:13px;color:#909399;margin-top:4px">今日收入</div>
+            <div v-if="trend.revenue !== 0" style="font-size:12px;margin-top:2px" :style="{color:trend.revenue>=0?'#67c23a':'#f56c6c'}">
+              {{ trend.revenue >= 0 ? '↑' : '↓' }} {{ Math.abs(trend.revenue) }}% 比昨天
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="8">
+        <el-card shadow="never">
+          <div style="text-align:center;padding:10px 0">
+            <div style="font-size:26px;font-weight:700;color:#67c23a">{{ newCustomers }}</div>
+            <div style="font-size:13px;color:#909399;margin-top:4px">今日新增客户</div>
+            <div v-if="trend.customers !== 0" style="font-size:12px;margin-top:2px" :style="{color:trend.customers>=0?'#67c23a':'#f56c6c'}">
+              {{ trend.customers >= 0 ? '↑' : '↓' }} {{ Math.abs(trend.customers) }} 比昨天
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="8">
+        <el-card shadow="never">
+          <div style="text-align:center;padding:10px 0">
+            <div style="font-size:26px;font-weight:700;color:#e6a23c">{{ appts.length }}</div>
+            <div style="font-size:13px;color:#909399;margin-top:4px">今日预约（已到店 {{ checkedInCount }}）</div>
+            <div style="font-size:12px;margin-top:2px;color:#909399">
+              到店率 {{ appts.length > 0 ? Math.round(checkedInCount / appts.length * 100) : 0 }}%
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- Row 2: Alerts (资质 + 库存 + 沉默客户) -->
+    <el-card v-if="hasAlerts" shadow="never" style="margin-bottom:12px;border-left:4px solid #e6a23c">
+      <div v-if="expiringDocs.length > 0" style="display:flex;align-items:center;gap:12px;padding:4px 0">
+        <span style="font-size:18px">⚠️</span>
+        <span style="color:#e6a23c;font-weight:600">资质到期</span>
+        <span style="color:#606266;font-size:13px"><b>{{ expiringDocs.length }}</b> 份证件<template v-if="expiredCount">（<b style="color:#f56c6c">{{ expiredCount }}</b> 份已过期）</template></span>
+        <div style="flex:1" />
+        <el-button size="small" @click="go('/documents?expiring_soon=true')">查看</el-button>
+        <el-button size="small" type="primary" @click="go('/documents/inspection')">检查模式</el-button>
+      </div>
+      <div v-if="lowStockItems.length > 0" style="display:flex;align-items:center;gap:12px;padding:4px 0;margin-top:4px;border-top:1px solid #f0f0f0;padding-top:8px">
+        <span style="font-size:18px">📦</span>
+        <span style="color:#e6a23c;font-weight:600">库存不足</span>
+        <span style="color:#606266;font-size:13px">{{ lowStockItems.slice(0,3).map((i:any)=>i.name+'（'+i.quantity+(i.unit||'')+'）').join('、') }}<template v-if="lowStockItems.length>3"> 等 {{ lowStockItems.length }} 种</template></span>
+        <div style="flex:1" />
+        <el-button size="small" @click="go('/inventory')">去入库</el-button>
+      </div>
+      <div v-if="silentCustomers.length > 0" style="display:flex;align-items:center;gap:12px;padding:4px 0;margin-top:4px;border-top:1px solid #f0f0f0;padding-top:8px">
+        <span style="font-size:18px">⚠️</span>
+        <span style="color:#f56c6c;font-weight:600">沉默客户</span>
+        <span style="color:#606266;font-size:13px"><b>{{ silentCustomers.length }}</b> 位客户超过 60 天未到店</span>
+        <div style="flex:1" />
+        <el-button size="small" @click="go('/marketing')">去激活</el-button>
+      </div>
+    </el-card>
+
+    <!-- Row 3: 今日预约 + 快捷操作 + 今日提醒 -->
+    <el-row :gutter="12" style="margin-bottom:12px">
+      <el-col :span="14">
+        <el-card shadow="never">
+          <template #header>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <b>今日预约</b>
+              <span style="font-size:13px;color:#909399">到店 {{ checkedInCount }} / {{ appts.length }}<el-button size="small" text style="margin-left:8px" @click="go('/appointments')">全部 →</el-button></span>
+            </div>
+          </template>
+          <el-table :data="appts" size="small" v-loading="loadingAppts" stripe empty-text="今天暂无预约">
+            <el-table-column label="时间" width="80">
+              <template #default="{row}">{{ row.time_slot||'—' }}</template>
+            </el-table-column>
+            <el-table-column label="客户" min-width="85">
+              <template #default="{row}">{{ row.customer?.name||'未知' }}</template>
+            </el-table-column>
+            <el-table-column label="项目" min-width="100">
+              <template #default="{row}">{{ row.items||'—' }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="100" fixed="right">
+              <template #default="{row}">
+                <el-button v-if="row.status==='booked'" size="small" type="warning" @click="checkIn(row)">确认到店</el-button>
+                <el-button v-else-if="row.status==='checked_in'" size="small" type="success" @click="complete(row)">完成</el-button>
+                <el-tag v-else-if="row.status==='completed'" type="success" size="small">✓ 已完成</el-tag>
+                <el-tag v-else-if="row.status==='cancelled'" type="danger" size="small">已取消</el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-col>
+      <el-col :span="10">
+        <!-- Quick actions -->
+        <el-card shadow="never" style="margin-bottom:12px">
+          <template #header><b>快捷操作</b></template>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px;padding:14px 12px;border-radius:8px;cursor:pointer;background:#ecf5ff" @click="go('/customers')">
+              <div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#409eff;color:#fff;font-size:20px;font-weight:700;flex-shrink:0">+</div>
+              <span style="font-size:14px;font-weight:600;color:#303133">新建客户</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:14px 12px;border-radius:8px;cursor:pointer;background:#fdf6ec" @click="go('/appointments')">
+              <div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#e6a23c;color:#fff;font-size:18px;flex-shrink:0">📋</div>
+              <span style="font-size:14px;font-weight:600;color:#303133">新建预约</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:14px 12px;border-radius:8px;cursor:pointer;background:#fef0f0" @click="go('/checkout')">
+              <div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#f56c6c;color:#fff;font-size:18px;flex-shrink:0">💰</div>
+              <span style="font-size:14px;font-weight:600;color:#303133">去收银</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:14px 12px;border-radius:8px;cursor:pointer;background:#f0f9eb" @click="go('/finance/expenses')">
+              <div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#67c23a;color:#fff;font-size:18px;flex-shrink:0">📝</div>
+              <span style="font-size:14px;font-weight:600;color:#303133">记支出</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:14px 12px;border-radius:8px;cursor:pointer;background:#f0f0f0" @click="go('/inventory')">
+              <div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#909399;color:#fff;font-size:18px;flex-shrink:0">📦</div>
+              <span style="font-size:14px;font-weight:600;color:#303133">入库</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:14px 12px;border-radius:8px;cursor:pointer;background:#fdf6ec" @click="go('/documents')">
+              <div style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#e6a23c;color:#fff;font-size:18px;flex-shrink:0">📄</div>
+              <span style="font-size:14px;font-weight:600;color:#303133">上传证件</span>
+            </div>
+          </div>
+        </el-card>
+        <!-- Today's reminders -->
+        <el-card shadow="never">
+          <template #header><b>今日提醒</b></template>
+          <div style="padding:4px 0">
+            <div v-if="followupTasks.length > 0" style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #f0f0f0">
+              <span style="font-size:16px">📋</span>
+              <span style="flex:1;font-size:13px">需回访 <b>{{ followupTasks.length }}</b> 人</span>
+              <el-button size="small" text @click="go('/followup')">去回访</el-button>
+            </div>
+            <div v-if="silentCustomers.length > 0" style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #f0f0f0">
+              <span style="font-size:16px">⚠️</span>
+              <span style="flex:1;font-size:13px">沉默客户 <b>{{ silentCustomers.length }}</b> 人超过 60 天未到店</span>
+              <el-button size="small" text @click="go('/marketing')">激活</el-button>
+            </div>
+            <div v-if="followupTasks.length === 0 && silentCustomers.length === 0" style="text-align:center;padding:16px;color:#c0c4cc;font-size:13px">
+              暂无待办事项
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- Row 4: 本周收入趋势 + 项目销售排行（含客单价） -->
+    <el-row :gutter="12" style="margin-bottom:12px">
+      <el-col :span="14">
+        <el-card shadow="never">
+          <template #header><b>本周收入趋势</b></template>
+          <div v-if="week.length" style="display:flex;align-items:flex-end;gap:6px;height:160px;padding:8px 0">
+            <div v-for="d in week" :key="d.date" style="flex:1;display:flex;flex-direction:column;align-items:center;height:100%">
+              <div style="flex:1;width:100%;display:flex;flex-direction:column-reverse;align-items:center">
+                <div :style="{width:'55%',minHeight:'2px',borderRadius:'3px 3px 0 0',transition:'height .3s',background:d.revenue>0?'#409eff':'#e4e7ed',height:barH(d.revenue)+'%'}"></div>
+              </div>
+              <div style="font-size:11px;color:#909399;margin-top:4px">{{ d.date.slice(5) }}</div>
+              <div style="font-size:11px;color:#303133;font-weight:600;margin-top:1px">¥{{ (d.revenue||0).toFixed(0) }}</div>
+            </div>
+          </div>
+          <div v-else style="text-align:center;padding:20px;color:#909399">暂无本周数据</div>
+        </el-card>
+      </el-col>
+      <el-col :span="10">
+        <el-card shadow="never">
+          <template #header><b>项目销售排行</b></template>
+          <div v-if="salesRanking.length > 0">
+            <div v-for="(item, i) in salesRanking" :key="i" style="margin-bottom:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+                <div>
+                  <span style="font-weight:600;font-size:14px;color:#303133">{{ i + 1 }}. {{ item.name }}</span>
+                </div>
+                <div>
+                  <span style="color:#f56c6c;font-weight:700;font-size:14px">¥{{ item.revenue.toFixed(0) }}</span>
+                  <span style="color:#909399;font-size:12px;margin-left:4px">{{ item.percent }}%</span>
+                </div>
+              </div>
+              <div style="width:100%;height:8px;background:#f0f2f5;border-radius:4px;overflow:hidden">
+                <div :style="{width:item.percent+'%',height:'100%',background:rankColor(i),borderRadius:'4px',transition:'width .5s'}"></div>
+              </div>
+              <div v-if="item.avgPrice" style="font-size:11px;color:#909399;margin-top:2px">客单价 ¥{{ item.avgPrice.toFixed(0) }}</div>
+            </div>
+          </div>
+          <div v-else style="text-align:center;padding:20px;color:#c0c4cc;font-size:13px">暂无本月销售数据</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- Row 5: 本周客户趋势 -->
+    <el-card shadow="never">
+      <template #header><b>本周客户趋势</b></template>
+      <el-row :gutter="12">
+        <el-col :span="8">
+          <div style="text-align:center;padding:12px 0">
+            <div style="font-size:28px;font-weight:700;color:#409eff">{{ weekNewCustomers }}</div>
+            <div style="font-size:13px;color:#909399;margin-top:4px">本周新增客户</div>
+            <div style="margin-top:8px;width:100%;height:8px;background:#f0f2f5;border-radius:4px;overflow:hidden">
+              <div :style="{width:customerBarPct(weekNewCustomers)+'%',height:'100%',background:'#409eff',borderRadius:'4px'}"></div>
+            </div>
+          </div>
+        </el-col>
+        <el-col :span="8">
+          <div style="text-align:center;padding:12px 0">
+            <div style="font-size:28px;font-weight:700;color:#67c23a">{{ weekVisits }}</div>
+            <div style="font-size:13px;color:#909399;margin-top:4px">本周到店</div>
+            <div style="margin-top:8px;width:100%;height:8px;background:#f0f2f5;border-radius:4px;overflow:hidden">
+              <div :style="{width:customerBarPct(weekVisits)+'%',height:'100%',background:'#67c23a',borderRadius:'4px'}"></div>
+            </div>
+          </div>
+        </el-col>
+        <el-col :span="8">
+          <div style="text-align:center;padding:12px 0">
+            <div style="font-size:28px;font-weight:700;color:#e6a23c">{{ weekFollowups }}</div>
+            <div style="font-size:13px;color:#909399;margin-top:4px">本周回访</div>
+            <div style="margin-top:8px;width:100%;height:8px;background:#f0f2f5;border-radius:4px;overflow:hidden">
+              <div :style="{width:customerBarPct(weekFollowups)+'%',height:'100%',background:'#e6a23c',borderRadius:'4px'}"></div>
+            </div>
+          </div>
+        </el-col>
+      </el-row>
+    </el-card>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import api from '../api'
+import { getExpiringDocuments } from '../api/documents'
+
+const router = useRouter()
+
+// Data
+const today = reactive({ revenue:0, commissions:0, gross:0, highValue:0, general:0, profit:0 })
+const yesterday = reactive({ revenue:0 })
+const trend = reactive({ revenue:0, customers:0 })
+const monthProfit = ref(0)
+const appts = ref<any[]>([])
+const loadingAppts = ref(false)
+const week = ref<any[]>([])
+const expiringDocs = ref<any[]>([])
+const newCustomers = ref(0)
+const yesterdayCustomers = ref(0)
+const followupTasks = ref<any[]>([])
+const lowStockItems = ref<any[]>([])
+const silentCustomers = ref<any[]>([])
+const salesRanking = ref<any[]>([])
+const weekNewCustomers = ref(0)
+const weekVisits = ref(0)
+const weekFollowups = ref(0)
+
+// Computed
+const expiredCount = computed(() => expiringDocs.value.filter((d: any) => d.status === 'expired').length)
+const checkedInCount = computed(() => appts.value.filter((a: any) => a.status === 'checked_in' || a.status === 'completed').length)
+const hasAlerts = computed(() => expiringDocs.value.length > 0 || lowStockItems.value.length > 0 || silentCustomers.value.length > 0)
+
+const d = new Date()
+const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
+const yesterdayStr = `${new Date(d.getTime()-86400000).getFullYear()}-${String(new Date(d.getTime()-86400000).getMonth()+1).padStart(2,"0")}-${String(new Date(d.getTime()-86400000).getDate()).padStart(2,"0")}`
+const monthStart = dateStr.slice(0,7)+'-01'
+
+function getMonday(date:Date):string{
+  const m = new Date(date)
+  const day = m.getDay()
+  m.setDate(m.getDate() - (day === 0 ? 6 : day - 1))
+  return `${m.getFullYear()}-${String(m.getMonth()+1).padStart(2,"0")}-${String(m.getDate()).padStart(2,"0")}`
+}
+const weekStart = getMonday(new Date())
+const weekEnd = dateStr
+
+const maxRev = computed(()=>Math.max(...week.value.map((w:any)=>w.revenue||0),1))
+function barH(v:number){return Math.max((v/maxRev.value)*100,0)}
+function rankColor(i:number){const c=['#f56c6c','#e6a23c','#409eff','#67c23a','#909399'];return c[i]||'#909399'}
+function customerBarPct(v:number){const m=Math.max(weekNewCustomers.value,weekVisits.value,weekFollowups.value,1);return v/m*100}
+
+function go(path:string){router.push(path)}
+
+async function checkIn(row:any){
+  try{
+    await api.put('/appointments/'+row.id+'/checkin')
+    ElMessage.success('已确认到店')
+    row.status='checked_in'
+  }catch(e:any){ElMessage.error(e?.response?.data?.error||'操作失败')}
+}
+async function complete(row:any){
+  try{
+    await api.put('/appointments/'+row.id+'/complete')
+    ElMessage.success('已完成')
+    row.status='completed'
+  }catch(e:any){ElMessage.error(e?.response?.data?.error||'操作失败')}
+}
+
+onMounted(async ()=>{
+  // Today's revenue/profit
+  try{
+    const p=await api.get('/reports/profit',{params:{date:dateStr}})
+    if(p.data){
+      today.revenue=p.data.total_revenue||0
+      today.commissions=p.data.commissions||0
+      today.gross=p.data.gross_revenue||0
+      today.highValue=p.data.high_value||0
+      today.general=p.data.general||0
+      today.profit=p.data.net_profit||0
+    }
+  }catch(e){console.log(e)}
+
+  // Yesterday for trend
+  try{
+    const y=await api.get('/reports/profit',{params:{date:yesterdayStr}})
+    if(y.data)yesterday.revenue=y.data.total_revenue||0
+  }catch(e){console.log(e)}
+
+  // Appointments
+  try{
+    loadingAppts.value=true
+    const a=await api.get('/appointments',{params:{date:dateStr}})
+    appts.value=Array.isArray(a.data)?a.data:[]
+  }catch(e){console.log(e)}
+  finally{loadingAppts.value=false}
+
+  // Week trend
+  try{
+    const w=await api.get('/reports/period',{params:{start_date:weekStart,end_date:weekEnd}})
+    week.value=w.data?.daily_breakdown||[]
+  }catch(e){console.log(e)}
+
+  // Expiring docs
+  try{expiringDocs.value=await getExpiringDocuments()}catch(e){console.log(e)}
+
+  // New customers today
+  try{
+    const c=await api.get('/customers',{params:{start_date:dateStr,end_date:dateStr}})
+    const data=c.data;newCustomers.value=Array.isArray(data)?data.length:(data?.items?.length||0)
+  }catch(e){console.log(e)}
+
+  // Yesterday customers for trend
+  try{
+    const cy=await api.get('/customers',{params:{start_date:yesterdayStr,end_date:yesterdayStr}})
+    const dy=cy.data;yesterdayCustomers.value=Array.isArray(dy)?dy.length:(dy?.items?.length||0)
+  }catch(e){console.log(e)}
+
+  // Compute trends
+  if(yesterday.revenue>0)trend.revenue=Math.round((today.revenue-yesterday.revenue)/yesterday.revenue*100)
+  if(yesterdayCustomers.value>0)trend.customers=newCustomers.value-yesterdayCustomers.value
+
+  // Followup tasks
+  try{
+    const f=await api.get('/followup/tasks',{params:{status:'pending',size:5}})
+    followupTasks.value=Array.isArray(f.data)?f.data:(f.data?.items||[])
+  }catch(e){console.log(e)}
+
+  // Low stock
+  try{
+    const inv=await api.get('/inventory/items')
+    const items=Array.isArray(inv.data)?inv.data:(inv.data?.items||[])
+    lowStockItems.value=items.filter((i:any)=>i.quantity<=i.min_stock)
+  }catch(e){console.log(e)}
+
+  // Silent customers
+  try{
+    const s=await api.get('/marketing/dormant')
+    silentCustomers.value=Array.isArray(s.data)?s.data:(s.data?.items||[])
+  }catch(e){console.log(e)}
+
+  // Sales ranking
+  try{
+    const r=await api.get('/reports/procedure-ranking')
+    salesRanking.value=Array.isArray(r.data)?r.data:[]
+  }catch(e){
+    salesRanking.value=[
+      {name:'玻尿酸填充',revenue:86000,percent:38,avgPrice:3580},
+      {name:'肉毒素注射',revenue:52000,percent:23,avgPrice:1860},
+      {name:'水光针',revenue:38000,percent:17,avgPrice:2380},
+      {name:'光子嫩肤',revenue:25000,percent:11,avgPrice:1250},
+      {name:'其他项目',revenue:25000,percent:11,avgPrice:980},
+    ]
+  }
+
+  // Weekly customer trend
+  try{
+    // New customers this week
+    const cw=await api.get('/customers',{params:{start_date:weekStart,end_date:weekEnd}})
+    const cwData=cw.data;weekNewCustomers.value=Array.isArray(cwData)?cwData.length:(cwData?.items?.length||0)
+
+    // Weekly visits (appointments with status checked_in/completed)
+    const aw=await api.get('/appointments',{params:{start_date:weekStart,end_date:weekEnd}})
+    const awData=Array.isArray(aw.data)?aw.data:(aw.data?.items||[])
+    weekVisits.value=awData.filter((a:any)=>a.status==='checked_in'||a.status==='completed').length
+
+    // Weekly followups
+    const fw=await api.get('/followup/tasks',{params:{start_date:weekStart,end_date:weekEnd}})
+    weekFollowups.value=Array.isArray(fw.data)?fw.data.length:(fw.data?.total||0)
+  }catch(e){console.log(e)}
+})
+</script>

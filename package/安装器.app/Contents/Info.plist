@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>安装器</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.dongfangmei.installer</string>
+    <key>CFBundleName</key>
+    <string>安装器</string>
+    <key>CFBundleDisplayName</key>
+    <string>东芳美诊所管理系统安装器</string>
+    <key>CFBundleVersion</key>
+    <string>1.2.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>NSHighResolutionCapable</key>
+    <false/>
+    <key>LSUIElement</key>
+    <true/>
+</dict>
+</PLIST>
+
+cat > "安装器.app/Contents/MacOS/安装器" << 'RUNNER'
+#!/bin/bash
+# 安装器 — 自动解除隔离后运行 install.command
+MYDIR="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# 移除整个目录的隔离标记
+xattr -rd com.apple.quarantine "$MYDIR" 2>/dev/null || true
+
+# 运行安装脚本
+INSTALL_SCRIPT="$MYDIR/install.command"
+if [ -f "$INSTALL_SCRIPT" ]; then
+    chmod +x "$INSTALL_SCRIPT"
+    # 如果是被 Gatekeeper 阻止，弹窗提示
+    if xattr "$INSTALL_SCRIPT" 2>/dev/null | grep -q quarantine; then
+        osascript -e 'display dialog "正在解除安全限制，请稍候..." buttons {"确定"} default button 1 with icon note'
+        xattr -d com.apple.quarantine "$INSTALL_SCRIPT" 2>/dev/null || true
+    fi
+    exec "$INSTALL_SCRIPT"
+else
+    osascript -e 'display dialog "找不到 install.command 安装脚本\n\n请确认安装包文件完整" buttons {"退出"} default button 1 with icon stop'
+    exit 1
+fi
+RUNNER
+chmod +x "安装器.app/Contents/MacOS/安装器"
+
+# Also copy the Clinic.app icon for the installer
+cp Clinic.app/Contents/Resources/AppIcon.icns "安装器.app/Contents/" 2>/dev/null || true
+
+ls -la "安装器.app/Contents/MacOS/"
+echo "安装器.app created"

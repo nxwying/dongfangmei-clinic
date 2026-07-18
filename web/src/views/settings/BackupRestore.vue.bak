@@ -1,0 +1,120 @@
+<template>
+  <div>
+    <el-card shadow="never" style="margin-bottom: 16px">
+      <template #header><span style="font-weight: 600">导出备份</span></template>
+      <p style="color: #606266; margin-bottom: 16px; font-size: 14px">
+        导出当前数据库全部数据为 SQL 文件，用于数据归档或在其他环境中恢复。
+      </p>
+      <el-button type="primary" :loading="exporting" @click="handleExport" :icon="Download">
+        {{ exporting ? '正在导出...' : '导出备份' }}
+      </el-button>
+    </el-card>
+
+    <el-card shadow="never">
+      <template #header><span style="font-weight: 600">导入恢复</span></template>
+      <p style="color: #606266; margin-bottom: 16px; font-size: 14px">
+        选择之前导出的 SQL 备份文件来恢复数据。<br />
+        <span style="color: #e6a23c">⚠ 导入将覆盖当前数据，请谨慎操作。</span>
+      </p>
+      <el-upload
+        ref="uploadRef"
+        :auto-upload="false"
+        :show-file-list="true"
+        accept=".sql"
+        :limit="1"
+        :on-change="onFileChange"
+      >
+        <template #trigger>
+          <el-button type="primary" plain :icon="FolderOpened">选择文件</el-button>
+        </template>
+      </el-upload>
+      <div v-if="selectedFile" style="margin-top: 12px">
+        <el-button type="danger" :loading="importing" @click="handleImport" :icon="Upload">
+          {{ importing ? '正在恢复...' : '开始恢复' }}
+        </el-button>
+      </div>
+    </el-card>
+
+    <el-card shadow="never" style="margin-top: 16px">
+      <template #header><span style="font-weight: 600; color: #f56c6c">初始化系统</span></template>
+      <p style="color: #f56c6c; margin-bottom: 16px; font-size: 14px">
+        ⚠ 清除全部业务数据（客户、订单、预约、会员、病历、库存等），仅保留员工账号和系统设置。<br />
+        建议先导出备份再操作。
+      </p>
+      <el-button type="danger" :loading="resetting" @click="handleReset">
+        {{ resetting ? '正在初始化...' : '初始化系统' }}
+      </el-button>
+    </el-card>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Download, FolderOpened, Upload } from '@element-plus/icons-vue'
+import { exportBackup, importBackup, resetSystem } from '../../api/backup'
+
+const exporting = ref(false)
+const importing = ref(false)
+const selectedFile = ref<File | null>(null)
+
+async function handleExport() {
+  exporting.value = true
+  try {
+    await exportBackup()
+  } finally {
+    exporting.value = false
+  }
+}
+
+function onFileChange(uploadFile: any) {
+  selectedFile.value = uploadFile.raw || null
+}
+
+async function handleImport() {
+  if (!selectedFile.value) return
+  try {
+    await ElMessageBox.confirm(
+      '导入将覆盖当前所有数据，此操作不可撤销。确定继续？',
+      '危险操作',
+      { confirmButtonText: '确认导入', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  importing.value = true
+  try {
+    const res = await importBackup(selectedFile.value)
+    ElMessage.success(res?.message || '恢复成功')
+    selectedFile.value = null
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.error || '恢复失败')
+  } finally {
+    importing.value = false
+  }
+}
+async function handleReset() {
+  try {
+    await ElMessageBox.prompt(
+      '此操作将清除所有业务数据且不可撤销。\n请输入 "确认初始化" 以继续：',
+      '危险操作',
+      { confirmButtonText: '确认初始化', cancelButtonText: '取消',
+        inputPlaceholder: '请输入：确认初始化',
+        inputValidator: (v:string) => v === '确认初始化' ? true : '请输入"确认初始化"',
+        type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  resetting.value = true
+  try {
+    await resetSystem()
+    ElMessage.success('系统已初始化，所有业务数据已清除')
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.error || '初始化失败')
+  } finally {
+    resetting.value = false
+  }
+}
+
+</script>

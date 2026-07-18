@@ -1,0 +1,1 @@
+import{p as e}from"./index-dqyedn1A.js";async function s(r){return(await e.get("/orders",{params:r})).data}async function n(r){return(await e.get(`/orders/${r}`)).data}async function o(r){return(await e.post(`/orders/${r}/refund`)).data}export{n as a,s as g,o as r};

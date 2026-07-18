@@ -1,0 +1,263 @@
+<template>
+  <div style="max-width:1200px;margin:0 auto">
+    <el-card shadow="never" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-weight:600;font-size:15px">经营报表</span>
+        <el-date-picker v-model="sd" type="date" placeholder="开始" value-format="YYYY-MM-DD" style="width:140px"/>
+        <span style="color:#909399">—</span>
+        <el-date-picker v-model="ed" type="date" placeholder="结束" value-format="YYYY-MM-DD" style="width:140px"/>
+        <el-button type="primary" size="small" @click="load">查询</el-button>
+        <span v-if="loaded" style="font-size:12px;color:#67c23a">✓ 已加载</span>
+      </div>
+    </el-card>
+
+    <el-row :gutter="12" style="margin-bottom:14px">
+      <el-col :span="6"><el-card shadow="never"><div style="text-align:center;padding:10px 0"><div style="font-size:26px;font-weight:700;color:#409eff">¥{{ tv.toFixed(2) }}</div><div style="font-size:13px;color:#909399;margin-top:4px">总收入 ({{ oc }}笔)</div></div></el-card></el-col>
+      <el-col :span="6"><el-card shadow="never"><div style="text-align:center;padding:10px 0"><div style="font-size:26px;font-weight:700;color:#e6a23c">¥{{ tc.toFixed(2) }}</div><div style="font-size:13px;color:#909399;margin-top:4px">分成</div></div></el-card></el-col>
+      <el-col :span="6"><el-card shadow="never"><div style="text-align:center;padding:10px 0"><div style="font-size:26px;font-weight:700;color:#f56c6c">¥{{ (hv+ge).toFixed(2) }}</div><div style="font-size:13px;color:#909399;margin-top:4px">成本</div></div></el-card></el-col>
+      <el-col :span="6"><el-card shadow="never"><div style="text-align:center;padding:10px 0"><div :style="{fontSize:'26px',fontWeight:700,color:np>=0?'#67c23a':'#f56c6c'}">¥{{ np.toFixed(2) }}</div><div style="font-size:13px;color:#909399;margin-top:4px">净利润</div></div></el-card></el-col>
+    </el-row>
+
+    <!-- 利润公式 -->
+    <el-card shadow="never" style="margin-bottom:14px">
+      <template #header><b>利润计算</b></template>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;padding:6px 0">
+        <span style="font-size:17px;font-weight:700;color:#409eff">¥{{ tv.toFixed(2) }}</span> <span style="font-size:20px;color:#909399">−</span>
+        <span style="font-size:17px;font-weight:700;color:#e6a23c">¥{{ tc.toFixed(2) }}</span> <span style="font-size:20px;color:#909399;font-weight:700">=</span>
+        <span style="font-size:17px;font-weight:700;padding:4px 12px;background:#fdf6ec;border-radius:6px">¥{{ gr.toFixed(2) }}</span>
+        <span style="font-size:20px;color:#909399">−</span>
+        <span style="font-size:17px;font-weight:700;color:#f56c6c">¥{{ (hv+ge).toFixed(2) }}</span> <span style="font-size:20px;color:#909399;font-weight:700">=</span>
+        <span style="font-size:22px;font-weight:700;padding:4px 16px;background:#f0f9eb;border-radius:6px;color:#67c23a">¥{{ np.toFixed(2) }}</span>
+      </div>
+    </el-card>
+
+    <!-- 月度趋势 -->
+    <el-card shadow="never" style="margin-bottom:14px">
+      <template #header><b>月度趋势（近12个月）</b></template>
+      <div v-if="trend.length" style="display:flex;align-items:flex-end;gap:4px;height:200px;padding:8px 0">
+        <div v-for="m in trend" :key="m.month" style="flex:1;display:flex;flex-direction:column;align-items:center;height:100%">
+          <div style="flex:1;width:100%;display:flex;flex-direction:column-reverse;align-items:center;gap:1px">
+            <div :style="{width:'40%',minHeight:'2px',borderRadius:'3px 3px 0 0',transition:'height .3s',background:'#409eff',height:barH(m.revenue)+'%'}" :title="'收入: ¥'+fmt(m.revenue)"></div>
+            <div :style="{width:'40%',minHeight:'2px',borderRadius:'3px 3px 0 0',transition:'height .3s',background:'#67c23a',height:barH(m.net_profit)+'%',opacity:0.7}" :title="'净利润: ¥'+fmt(m.net_profit)"></div>
+          </div>
+          <div style="font-size:10px;color:#909399;margin-top:2px">{{ m.month.slice(5) }}</div>
+        </div>
+      </div>
+      <div v-else style="text-align:center;padding:20px;color:#909399">暂无月度数据</div>
+    </el-card>
+
+    <!-- 每日明细 -->
+    <el-card shadow="never" style="margin-bottom:14px">
+      <template #header><b>每日明细</b></template>
+      <el-table :data="daily" v-loading="loading" stripe empty-text="暂无已收款订单" size="small">
+        <el-table-column label="日期" width="100"><template #default="{row}">{{ row.date?.slice(0,10) }}</template></el-table-column>
+        <el-table-column label="订单" width="55" align="center" prop="orders"/>
+        <el-table-column label="收入" width="100" align="right"><template #default="{row}">¥{{ (row.revenue||0).toFixed(2) }}</template></el-table-column>
+        <el-table-column label="分成" width="90" align="right"><template #default="{row}">¥{{ (row.commissions||0).toFixed(2) }}</template></el-table-column>
+        <el-table-column label="成本" width="90" align="right"><template #default="{row}">¥{{ (row.cost||0).toFixed(2) }}</template></el-table-column>
+        <el-table-column label="净利润" width="110" align="right"><template #default="{row}"><span :style="{color:(row.net_profit||0)>=0?'#67c23a':'#f56c6c',fontWeight:700}">¥{{ (row.net_profit||0).toFixed(2) }}</span></template></el-table-column>
+      </el-table>
+    </el-card>
+
+    <!-- 项目排行 + 来源ROI -->
+    <el-row :gutter="12" style="margin-bottom:14px">
+      <el-col :span="12">
+        <el-card shadow="never">
+          <template #header><b>项目排行</b></template>
+          <el-table :data="items" size="small" stripe v-if="items.length>0">
+            <el-table-column label="#" type="index" width="36"/>
+            <el-table-column label="项目" prop="name" min-width="100"/>
+            <el-table-column label="次数" width="55" align="center" prop="count"/>
+            <el-table-column label="金额" width="100" align="right"><template #default="{row}">¥{{ (row.total||0).toFixed(2) }}</template></el-table-column>
+            <el-table-column label="占比" width="60" align="right"><template #default="{row}">{{ tv>0?(row.total/tv*100).toFixed(1):'0.0' }}%</template></el-table-column>
+          </el-table>
+          <div v-else style="text-align:center;padding:24px;color:#909399">暂无数据</div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="never">
+          <template #header><b>客户来源 ROI</b></template>
+          <div v-if="sources.length>0">
+            <div v-for="s in sources" :key="s.source" style="margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
+                <span style="font-weight:600;font-size:14px">{{ srcLabel(s.source) }}</span>
+                <span style="font-size:13px;color:#909399">{{ s.customer_count }}位</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;padding:0 0 2px">
+                <span>消费</span><span style="font-weight:700;color:#409eff">¥{{ s.total_revenue.toFixed(2) }}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px">
+                <span>客单价</span><span style="font-weight:700">¥{{ s.avg_order_value.toFixed(2) }}</span>
+              </div>
+              <div style="height:5px;background:#f0f2f5;border-radius:3px;margin-top:3px">
+                <div :style="{height:'100%',borderRadius:'3px',background:srcColor(s.source),width:srcPct(s.total_revenue)+'%',transition:'width .3s'}"></div>
+              </div>
+            </div>
+          </div>
+          <div v-else style="text-align:center;padding:24px;color:#909399">暂无数据</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 复购分析 + 员工绩效 -->
+    <el-row :gutter="12" style="margin-bottom:14px">
+      <el-col :span="12">
+        <el-card shadow="never">
+          <template #header><b>复购分析</b></template>
+          <div v-if="rp.total_customers>0">
+            <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;border-bottom:1px solid #ebeef5">
+              <span>总消费客户</span><span style="font-weight:700;font-size:18px;color:#409eff">{{ rp.total_customers }}人</span>
+            </div>
+            <div style="padding:8px 0">
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+                <span>复购率 (<span style="color:#909399">≥2次</span>)</span>
+                <span><span style="font-weight:700;color:#67c23a">{{ rp.repeat_rate.toFixed(1) }}%</span></span>
+              </div>
+              <div style="height:16px;background:#f0f2f5;border-radius:4px">
+                <div :style="{height:'100%',borderRadius:'4px',background:'#67c23a',width:Math.min(rp.repeat_rate,100)+'%',transition:'width .3s'}"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <div style="flex:1;text-align:center;padding:8px;background:#f0f9eb;border-radius:6px"><div style="font-size:18px;font-weight:700;color:#67c23a">{{ rp.single_order }}</div><div style="font-size:11px;color:#909399;margin-top:2px">1次</div></div>
+              <div style="flex:1;text-align:center;padding:8px;background:#fdf6ec;border-radius:6px"><div style="font-size:18px;font-weight:700;color:#e6a23c">{{ rp.two_orders }}</div><div style="font-size:11px;color:#909399;margin-top:2px">2次</div></div>
+              <div style="flex:1;text-align:center;padding:8px;background:#fef0f0;border-radius:6px"><div style="font-size:18px;font-weight:700;color:#f56c6c">{{ rp.three_plus_orders }}</div><div style="font-size:11px;color:#909399;margin-top:2px">3次+</div></div>
+            </div>
+          </div>
+          <div v-else style="text-align:center;padding:24px;color:#909399">暂无数据</div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="never">
+          <template #header><b>员工绩效</b></template>
+          <el-table :data="staff" size="small" stripe v-if="staff.length>0">
+            <el-table-column label="排名" type="index" width="40"/>
+            <el-table-column label="姓名" prop="real_name" min-width="70"/>
+            <el-table-column label="订单" width="55" align="center" prop="orders"/>
+            <el-table-column label="业绩" width="100" align="right"><template #default="{row}">¥{{ (row.total||0).toFixed(2) }}</template></el-table-column>
+          </el-table>
+          <div v-else style="text-align:center;padding:24px;color:#909399">暂无数据</div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 收银方式 + 套餐对比 -->
+    <el-row :gutter="12" style="margin-bottom:14px">
+      <el-col :span="12">
+        <el-card shadow="never">
+          <template #header><b>收款方式分析</b></template>
+          <div v-if="payMethods.length>0">
+            <el-table :data="payMethods" size="small" stripe>
+              <el-table-column label="方式" min-width="80">
+                <template #default="{row}">{{ payLabel(row.method) }}</template>
+              </el-table-column>
+              <el-table-column label="笔数" width="55" align="center" prop="count"/>
+              <el-table-column label="金额" width="100" align="right"><template #default="{row}">¥{{ (row.total||0).toFixed(2) }}</template></el-table-column>
+              <el-table-column label="占比" width="60" align="right"><template #default="{row}">{{ pmTotal>0?(row.total/pmTotal*100).toFixed(1):'0.0' }}%</template></el-table-column>
+            </el-table>
+          </div>
+          <div v-else style="text-align:center;padding:24px;color:#909399">暂无数据</div>
+        </el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card shadow="never">
+          <template #header><b>套餐 vs 单次</b></template>
+          <div style="display:flex;gap:12px;padding:6px 0" v-if="ps.length>0">
+            <div v-for="p in ps" :key="p.type" style="flex:1;padding:12px;border-radius:8px" :class="p.type==='package'?'pkg-card':'single-card'">
+              <div style="font-size:14px;font-weight:600;margin-bottom:6px">{{ p.type==='package'?'📦 买套餐':'🛒 单次' }}</div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px"><span>客户</span><span style="font-weight:700">{{ p.customer_count }}人</span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px"><span>订单</span><span style="font-weight:700">{{ p.order_count }}笔</span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px"><span>总消费</span><span style="font-weight:700;color:#409eff">¥{{ p.total_revenue.toFixed(2) }}</span></div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;border-top:1px solid #dcdfe6;margin-top:4px;padding-top:6px"><span>人均</span><span style="font-weight:700;font-size:15px;color:#e6a23c">¥{{ p.avg_per_customer.toFixed(2) }}</span></div>
+            </div>
+          </div>
+          <div v-else style="text-align:center;padding:24px;color:#909399">暂无数据</div>
+        </el-card>
+      </el-col>
+    </el-row>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue'
+import api from '../../api'
+
+const now = new Date()
+const ms = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`
+const td = now.toISOString().slice(0,10)
+const sd = ref(ms); const ed = ref(td)
+const loading = ref(false); const loaded = ref(false)
+
+const tv=ref(0); const tc=ref(0); const hv=ref(0); const ge=ref(0)
+const gr=ref(0); const np=ref(0); const oc=ref(0)
+const daily=ref<any[]>([]); const items=ref<any[]>([])
+
+const rp=ref({total_customers:0,repeat_customers:0,repeat_rate:0,single_order:0,two_orders:0,three_plus_orders:0})
+const staff=ref<any[]>([]); const ps=ref<any[]>([])
+const sources=ref<any[]>([]); const payMethods=ref<any[]>([]); const custTrend=ref<any[]>([]); const funnel=ref<any[]>([])
+const trend=ref<any[]>([])
+
+const maxRev = computed(()=>Math.max(...trend.value.map((m:any)=>m.revenue||0),1))
+function barH(v:number){return Math.max((v/maxRev.value)*100,0)}
+function ctBarH(v:number){const mx=Math.max(...custTrend.value.map((m:any)=>m.new_customers||0),1);return Math.max((v/mx)*100,0)}
+function fmt(v:number){return v.toFixed(0)}
+
+const fSteps=computed(()=>{
+  const labels:Record<string,string>={booked:'已预约',checked_in:'已到店',completed:'已消费',cancelled:'已取消'}
+  const colors:Record<string,string>={booked:'#909399',checked_in:'#e6a23c',completed:'#67c23a',cancelled:'#f56c6c'}
+  const orders=['booked','checked_in','completed']
+  return orders.map(s=>{
+    const item=funnel.value.find((f:any)=>f.status===s)
+    const count=item?.count||0
+    const allCounts=funnel.value.reduce((sum:number,f:any)=>sum+(f.count||0),0)
+    return{status:s,label:labels[s]||s,count,color:colors[s]||'#909399',pct:fStepsPct(count,allCounts)}
+  })
+})
+function fStepsPct(v:number,t:number){return t>0?(v/t*100):0}
+function fPct(v:number){const mx=Math.max(...fSteps.value.map((s:any)=>s.count||0),1);return(v/mx)*100}
+function fRate(a:number,b:number){return a>0?Math.round(b/a*100):0}
+const srcL:Record<string,string>={walk_in:'到店',referral:'转介绍',xiaohongshu:'小红书',wechat:'微信',douyin:'抖音',dianping:'大众点评',meituan:'美团',direct:'直客',old_customer_ref:'老带新'}
+function srcLabel(s:string){return srcL[s]||s||'其他'}
+const srcC:Record<string,string>={walk_in:'#409eff',referral:'#67c23a',xiaohongshu:'#f56c6c',wechat:'#e6a23c',douyin:'#9b59b6',dianping:'#1abc9c',meituan:'#e74c3c',direct:'#34495e',old_customer_ref:'#2ecc71'}
+const maxSrcRev=ref(0)
+function srcPct(v:number){return maxSrcRev.value>0?(v/maxSrcRev.value)*100:0}
+
+const payL:Record<string,string>={wechat:'微信',cash:'现金',card:'银行卡',balance:'余额',gift:'赠送金',package:'套餐划扣',recharge:'充值'}
+function payLabel(s:string){return payL[s]||s}
+const pmTotal = computed(()=>payMethods.value.reduce((s:number,p:any)=>s+(p.total||0),0))
+
+async function load(){
+  if(!sd.value||!ed.value)return
+  loading.value=true;loaded.value=false
+  try{
+    const[p,roi,ins,pm,ana,ct]=await Promise.all([
+      api.get('/reports/period',{params:{start_date:sd.value,end_date:ed.value}}),
+      api.get('/reports/source-roi',{params:{start_date:sd.value,end_date:ed.value}}),
+      api.get('/reports/insights',{params:{start_date:sd.value,end_date:ed.value}}),
+      api.get('/reports/payment-methods',{params:{start_date:sd.value,end_date:ed.value}}),
+      api.get('/reports/analytics'),
+      api.get('/reports/customer-trend')
+    ])
+    const d=p.data||{}
+    tv.value=d.total_revenue||0;tc.value=d.commissions||0;hv.value=d.high_value||0
+    ge.value=d.general||0;gr.value=d.gross_revenue||0;np.value=d.net_profit||0;oc.value=d.order_count||0
+    daily.value=d.daily_breakdown||[];items.value=d.top_items||[]
+
+    const s=Array.isArray(roi.data)?roi.data:[];
+    sources.value=s;maxSrcRev.value=Math.max(...s.map((x:any)=>x.total_revenue||0),1)
+
+    rp.value=ins.data?.repurchase||rp.value;staff.value=ins.data?.staff_perf||[];ps.value=ins.data?.package_vs_single||[]
+    payMethods.value=Array.isArray(pm.data)?pm.data:[]
+    trend.value=ana.data?.monthly_trend||[]
+    funnel.value=ana.data?.appointment_funnel||[]
+    custTrend.value=ct.data||[]
+
+    loaded.value=true
+  }catch(e){console.error(e)}
+  finally{loading.value=false}
+}
+onMounted(load)
+</script>
+<style scoped>
+.pkg-card{background:#f0f9eb;border:1px solid #e1f3d8}
+.single-card{background:#f5f7fa;border:1px solid #e4e7ed}
+</style>
