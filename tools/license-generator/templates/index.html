@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>授权文件生成工具</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background:#f0f2f5; display:flex; justify-content:center; align-items:center; min-height:100vh; padding:20px }
+.card { background:#fff; border-radius:12px; box-shadow:0 2px 12px rgba(0,0,0,.08); width:520px; max-width:100%; padding:32px }
+h1 { font-size:20px; color:#303133; margin-bottom:4px }
+.subtitle { font-size:13px; color:#909399; margin-bottom:24px }
+.field { margin-bottom:18px }
+.field label { display:block; font-size:13px; color:#606266; font-weight:600; margin-bottom:4px }
+.field input { width:100%; height:38px; border:1px solid #dcdfe6; border-radius:6px; padding:0 12px; font-size:14px; outline:none; transition:border-color .2s }
+.field input:focus { border-color:#409eff }
+.field input::placeholder { color:#c0c4cc }
+.btn-row { display:flex; gap:10px; margin-top:24px }
+.btn { height:40px; border:none; border-radius:6px; font-size:14px; cursor:pointer; padding:0 24px; font-weight:600; transition:opacity .2s }
+.btn:hover { opacity:.85 }
+.btn-primary { background:#409eff; color:#fff; flex:1 }
+.btn-success { background:#67c23a; color:#fff }
+.btn-danger { background:#f56c6c; color:#fff }
+.result { margin-top:20px; padding:16px; background:#f5f7fa; border-radius:8px; display:none }
+.result.show { display:block }
+.result pre { font-size:12px; line-height:1.5; max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-all; margin-bottom:12px; padding:8px; background:#fff; border:1px solid #e4e7ed; border-radius:4px }
+.error { color:#f56c6c; font-size:13px; margin-top:4px; display:none }
+.msg { font-size:13px; margin-bottom:8px }
+.msg.success { color:#67c23a }
+.msg.error { color:#f56c6c }
+.status { display:flex; align-items:center; gap:8px; justify-content:center; padding:12px; border-radius:6px; margin-top:16px; display:none }
+.status.show { display:flex }
+.status.success { background:#f0f9eb; color:#67c23a }
+.status.error { background:#fef0f0; color:#f56c6c }
+.spinner { display:inline-block; width:16px; height:16px; border:2px solid #e4e7ed; border-top-color:#409eff; border-radius:50%; animation:spin .6s linear infinite }
+@keyframes spin { to { transform:rotate(360deg) } }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🔑 授权文件生成工具</h1>
+  <p class="subtitle">为东芳美诊所管理系统生成授权文件</p>
+
+  <div class="field">
+    <label>机器码 *</label>
+    <input id="machine" placeholder="XXXX-XXXX-XXXX-XXXX" oninput="checkForm()">
+  </div>
+  <div class="field">
+    <label>客户名称 *</label>
+    <input id="customer" placeholder="东芳美医疗美容诊所" oninput="checkForm()">
+  </div>
+  <div class="field">
+    <label>过期日期（留空=永久授权）</label>
+    <input id="expires" type="date">
+  </div>
+  <div class="field">
+    <label>授权功能</label>
+    <input id="features" value="all" placeholder="all 为全部功能">
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="genBtn" onclick="generate()" disabled>生成授权文件</button>
+    <button class="btn btn-danger" onclick="clearForm()">清空</button>
+  </div>
+
+  <div class="status" id="statusBar"></div>
+
+  <div class="result" id="resultBox">
+    <div class="msg success" id="resultMsg">✅ 授权文件已生成</div>
+    <pre id="resultContent"></pre>
+    <button class="btn btn-success" onclick="downloadFile()">📥 下载授权文件</button>
+  </div>
+
+  <div style="margin-top:20px;padding-top:16px;border-top:1px solid #ebeef5;font-size:12px;color:#c0c4cc;text-align:center">
+    将此文件导入到软件「系统设置 → 授权管理」激活
+  </div>
+</div>
+
+<script>
+let lastContent = ''
+
+function checkForm() {
+  const btn = document.getElementById('genBtn')
+  btn.disabled = !document.getElementById('machine').value || !document.getElementById('customer').value
+}
+
+function showStatus(type, msg) {
+  const bar = document.getElementById('statusBar')
+  bar.className = 'status show ' + type
+  bar.innerHTML = type === 'success' ? '✓ ' + msg : '✗ ' + msg
+  setTimeout(() => { bar.className = 'status' }, 4000)
+}
+
+function generate() {
+  const btn = document.getElementById('genBtn')
+  btn.disabled = true
+  btn.innerHTML = '<span class="spinner"></span> 正在生成...'
+  document.getElementById('resultBox').className = 'result'
+
+  const form = new FormData()
+  form.append('machine_code', document.getElementById('machine').value.trim())
+  form.append('customer', document.getElementById('customer').value.trim())
+  form.append('expires_at', document.getElementById('expires').value)
+  form.append('features', document.getElementById('features').value.trim() || 'all')
+
+  fetch('/generate', { method:'POST', body:form })
+    .then(r => r.json())
+    .then(d => {
+      if (d.error) {
+        showStatus('error', d.error)
+        btn.disabled = false
+        btn.innerHTML = '生成授权文件'
+      } else {
+        showStatus('success', d.message)
+        lastContent = d.content
+        document.getElementById('resultBox').className = 'result show'
+        document.getElementById('resultContent').textContent = d.content
+        document.getElementById('resultMsg').textContent = '✅ 授权文件已生成 - 客户: ' + d.customer + (d.expires ? ' / 有效期至: ' + d.expires : ' / 永久授权')
+        btn.disabled = false
+        btn.innerHTML = '生成授权文件'
+      }
+    })
+    .catch(e => {
+      showStatus('error', '生成失败: ' + e.message)
+      btn.disabled = false
+      btn.innerHTML = '生成授权文件'
+    })
+}
+
+function downloadFile() {
+  const form = new FormData()
+  form.append('machine_code', document.getElementById('machine').value.trim())
+  form.append('customer', document.getElementById('customer').value.trim())
+  form.append('expires_at', document.getElementById('expires').value)
+  form.append('features', document.getElementById('features').value.trim() || 'all')
+  form.append('download', '1')
+
+  fetch('/generate', { method:'POST', body:form })
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const name = document.getElementById('customer').value.trim().replace(/\s/g,'_')
+      a.download = 'license_' + name + '.json'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    })
+}
+
+function clearForm() {
+  document.getElementById('machine').value = ''
+  document.getElementById('customer').value = ''
+  document.getElementById('expires').value = ''
+  document.getElementById('features').value = 'all'
+  document.getElementById('resultBox').className = 'result'
+  document.getElementById('statusBar').className = 'status'
+  checkForm()
+}
+</script>
+</body>
+</html>

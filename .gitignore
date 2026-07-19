@@ -48,3 +48,7 @@ installer_build/
 *.dmg
 *.zip
 *.tar.gz
+
+# License generator binaries
+tools/license-generator/license-generator-*
+tools/license-generator/dist/
