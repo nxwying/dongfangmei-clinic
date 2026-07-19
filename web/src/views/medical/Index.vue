@@ -82,6 +82,17 @@
           </el-col>
         </el-row>
 
+        <el-form-item label="选用模版" v-if="templateOptions.length > 0">
+          <el-select v-model="selectedTemplate" placeholder="选择模版自动填充内容" clearable style="width:100%" @change="applyTemplate">
+            <el-option v-for="t in templateOptions" :key="t.id" :label="t.name" :value="t">
+              <div style="display:flex;justify-content:space-between">
+                <span>{{ t.name }}</span>
+                <span v-if="t.procedure_name" style="color:#909399;font-size:12px">{{ t.procedure_name }}</span>
+              </div>
+            </el-option>
+          </el-select>
+        </el-form-item>
+
         <el-divider>病历内容</el-divider>
 
         <div v-if="currentFields.length > 0">
@@ -133,7 +144,11 @@
         </div>
         <div style="display:flex;gap:16px;margin-bottom:8px;font-size:13px;color:#606266;flex-wrap:wrap">
           <span><b>患者：</b>{{ viewData.customer?.name||'未知' }}</span>
-          <span><b>日期：</b>{{ viewData.record_date }}</span>
+          <span><b>性别：</b>{{ genderLabel(viewData.customer?.gender) }}</span>
+          <span><b>年龄：</b>{{ calcAge(viewData.customer?.birthday) }}岁</span>
+          <span><b>电话：</b>{{ viewData.customer?.phone||'-' }}</span>
+          <span><b>身份证：</b>{{ viewData.customer?.id_card||'-' }}</span>
+          <span><b>就诊日期：</b>{{ viewData.record_date }}</span>
           <span><b>医生：</b>{{ viewData.doctor_name||'-' }}</span>
           <span><b>状态：</b>{{ statusLabel(viewData.status) }}</span>
         </div>
@@ -211,6 +226,22 @@ function typeLabel(key: string): string {
 
 function statusLabel(s: string): string {
   return { draft: '草稿', signed: '已签', archived: '已归档' }[s] || s
+}
+
+function genderLabel(g: number): string {
+  if (g === 1) return '男'
+  if (g === 2) return '女'
+  return '未知'
+}
+
+function calcAge(birthday?: string): string {
+  if (!birthday) return '-'
+  const birth = new Date(birthday)
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+  return String(age)
 }
 
 // ======================== Field Definitions per Type ========================
@@ -307,6 +338,8 @@ const signDrawing = ref<{key:string;ctx:CanvasRenderingContext2D|null;drawing:bo
 const formData = ref({ customer_id: null, record_type: '', record_date: '', doctor_name: '' })
 const formContent = ref<any>({})
 const viewData = ref<any>(null)
+const templateOptions = ref<any[]>([])
+const selectedTemplate = ref<any>(null)
 
 const photosRecord = ref<any>(null)
 const photoType = ref('before')
@@ -377,6 +410,8 @@ function resetForm() {
     else if (f.type === 'signature') formContent.value[f.key] = ''
     else formContent.value[f.key] = f.default || ''
   })
+  selectedTemplate.value = null
+  loadTemplatesForType()
 }
 
 function onTypeChange() {
@@ -387,6 +422,36 @@ function onTypeChange() {
     else if (f.type === 'signature') formContent.value[f.key] = ''
     else formContent.value[f.key] = f.default || ''
   })
+  selectedTemplate.value = null
+  loadTemplatesForType()
+}
+
+async function loadTemplatesForType() {
+  if (!formData.value.record_type) { templateOptions.value = []; return }
+  try {
+    const r = await api.get('/medical/templates', { params: { category: formData.value.record_type } })
+    templateOptions.value = Array.isArray(r.data) ? r.data : []
+  } catch { templateOptions.value = [] }
+}
+
+function applyTemplate(tmpl: any) {
+  if (!tmpl) return
+  try {
+    const content = JSON.parse(tmpl.fields || '{}')
+    const fields = FIELD_DEFS[formData.value.record_type as string] || []
+    fields.forEach((f: FieldDef) => {
+      if (content[f.key] !== undefined) {
+        formContent.value[f.key] = content[f.key]
+      } else {
+        if (f.type === 'checkbox') formContent.value[f.key] = []
+        else if (f.type === 'signature') formContent.value[f.key] = ''
+        else formContent.value[f.key] = f.default || ''
+      }
+    })
+    ElMessage.success('已应用模版「' + tmpl.name + '」')
+  } catch {
+    ElMessage.error('模版数据解析失败')
+  }
 }
 
 function openCreate() {
@@ -443,10 +508,79 @@ function viewRecord(row: any) {
 }
 
 function printRecord() {
-  window.print()
+  if (!viewData.value) return
+  const data = viewData.value
+  const parsed = parseContent(data.content||'{}')
+  const fields = FIELD_DEFS[data.record_type as string] || []
+  const c = data.customer||{}
+  const customerName = c.name||'未知'
+  const genderTxt = c.gender===1?'男':c.gender===2?'女':'未知'
+  const ageTxt = c.birthday?calcAge(c.birthday):'-'
+  const phoneTxt = c.phone||'-'
+  const idCardTxt = c.id_card||'-'
+  const recordType = typeLabel(data.record_type)
+  const recordDate = data.record_date||''
+  const doctorName = data.doctor_name||'-'
+  const statusTxt = statusLabel(data.status)
+
+  // Build HTML content
+  let fieldsHtml = ''
+  const esc = (s: any) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  fields.forEach((f: FieldDef) => {
+    const val = parsed[f.key]
+    if (f.type === 'section') {
+      fieldsHtml += '<div style="font-weight:700;font-size:15px;border-bottom:2px solid #333;padding:8px 0 4px;margin:10px 0 4px">'+esc(f.label)+'</div>'
+    } else if (f.type === 'signature') {
+      if (val) {
+        fieldsHtml += '<div style="padding:2px 0"><span style="min-width:90px;color:#666;display:inline-block">'+esc(f.label)+'：</span><img src="'+esc(val)+'" style="max-height:50px;border:1px solid #ddd"/></div>'
+      } else {
+        fieldsHtml += '<div style="padding:2px 0"><span style="min-width:90px;color:#666;display:inline-block">'+esc(f.label)+'：</span><span style="color:#c0c4cc">未签署</span></div>'
+      }
+    } else if (f.type === 'checkbox') {
+      const v = (val||[]).join('、')
+      fieldsHtml += '<div style="padding:2px 0"><span style="min-width:90px;color:#666;display:inline-block">'+esc(f.label)+'：</span><span style="white-space:pre-wrap">'+esc(v||'-')+'</span></div>'
+    } else {
+      fieldsHtml += '<div style="padding:2px 0"><span style="min-width:90px;color:#666;display:inline-block">'+esc(f.label)+'：</span><span style="white-space:pre-wrap">'+esc(val||'-')+'</span></div>'
+    }
+  })
+
+  const style = `
+    @page { margin: 20mm 15mm }
+    body { font-family: "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; font-size:14px; color:#333; line-height:1.8; padding:20px }
+    .header { text-align:center; font-size:18px; font-weight:700; border-bottom:2px solid #333; padding-bottom:10px; margin-bottom:10px }
+    .meta { display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:#666; margin-bottom:8px }
+    .meta b { color:#333 }
+    .divider { border:none; border-top:1px solid #ddd; margin:8px 0 }
+  `
+
+  // Create hidden iframe for printing (avoids popup blocker)
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:800px;height:600px'
+  document.body.appendChild(iframe)
+  const doc = iframe.contentWindow?.document
+  if (!doc) { ElMessage.error('无法创建打印窗口'); return }
+  doc.open()
+  doc.write('<html><head><meta charset="utf-8"><title>'+recordType+'</title><style>'+style+'</style></head><body>')
+  doc.write('<div class="header">'+recordType+'</div>')
+  doc.write('<div class="meta"><span><b>患者：</b>'+esc(customerName)+'</span><span><b>性别：</b>'+esc(genderTxt)+'</span><span><b>年龄：</b>'+esc(ageTxt)+'岁</span><span><b>电话：</b>'+esc(phoneTxt)+'</span><span><b>身份证：</b>'+esc(idCardTxt)+'</span><span><b>就诊日期：</b>'+esc(recordDate)+'</span><span><b>医生：</b>'+esc(doctorName)+'</span><span><b>状态：</b>'+esc(statusTxt)+'</span></div>')
+  doc.write('<hr class="divider"/>')
+  doc.write(fieldsHtml)
+  doc.write('</body></html>')
+  doc.close()
+
+  // Wait for iframe to render, then print
+  setTimeout(() => {
+    try {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+    } catch(e) {
+      ElMessage.error('打印失败')
+    }
+    // Remove iframe after print dialog closes
+    setTimeout(() => { document.body.removeChild(iframe) }, 1000)
+  }, 300)
 }
 
-// ======================== Signature ========================
 function startSign(key: string, e: MouseEvent) {
   const canvas = signCanvasRefs.value[key]
   if (!canvas) return

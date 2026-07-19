@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <div class="login-card">
-      <h2 class="login-title">医美诊所管理系统</h2>
+      <h2 class="login-title">{{ appName }}</h2>
       <el-form ref="formRef" :model="form" :rules="rules" @keyup.enter="handleLogin">
         <el-form-item prop="username">
           <el-input v-model="form.username" placeholder="用户名" size="large" :prefix-icon="User" />
@@ -21,13 +21,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useAuthStore } from '../stores/auth'
+import { getSystemConfig } from '../api/settings'
 
 const router = useRouter()
 const auth = useAuthStore()
+const appName = ref('医美诊所管理系统')
+
+onMounted(async () => {
+  try {
+    const cfg = await getSystemConfig()
+    if (cfg?.app_name) appName.value = cfg.app_name
+  } catch {}
+})
 const formRef = ref()
 const loading = ref(false)
 const error = ref('')

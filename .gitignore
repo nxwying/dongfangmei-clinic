@@ -29,3 +29,22 @@ installer_build/
 # Editor
 .vscode/
 .idea/
+!build/*.dmg
+
+# Cross-compiled binaries
+server_linux
+server.exe
+
+# License
+license.json
+data/license.json
+data/system.json
+
+# Build tools
+tools/license-signer/signer
+
+# Installer builds
+installer_build/
+*.dmg
+*.zip
+*.tar.gz

@@ -29,3 +29,27 @@ export async function updatePackageTemplate(id: number, data: any) {
   const res = await api.put(`/settings/package-templates/${id}`, data)
   return res.data
 }
+import api from '../api'
+
+export interface ThemeConfig {
+  primary_color: string
+  sidebar_bg: string
+  sidebar_text: string
+  sidebar_active: string
+  font_size: string
+}
+
+export interface SystemConfig {
+  app_name: string
+  theme: ThemeConfig
+}
+
+export async function getSystemConfig(): Promise<SystemConfig> {
+  const res = await api.get('/settings/system-config')
+  return res.data
+}
+
+export async function updateSystemConfig(data: Partial<SystemConfig>) {
+  const res = await api.put('/settings/system-config', data)
+  return res.data
+}

@@ -18,10 +18,10 @@ import (
 	"clinic-mgmt/internal/treatment"
 	"clinic-mgmt/internal/followup"
 	"clinic-mgmt/internal/inventory"
-	"clinic-mgmt/internal/license"
 	"clinic-mgmt/internal/photo"
 	"clinic-mgmt/internal/commission"
 	"clinic-mgmt/internal/kpi"
+	"clinic-mgmt/internal/license"
 	"clinic-mgmt/internal/training"
 	"clinic-mgmt/internal/analysis"
 	"clinic-mgmt/internal/consent"
@@ -106,6 +106,8 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.GET("/settings/package-templates", settings.ListPackageTemplates(db))
 		protected.POST("/settings/package-templates", settings.CreatePackageTemplate(db))
 		protected.PUT("/settings/package-templates/:id", settings.UpdatePackageTemplate(db))
+		protected.GET("/settings/system-config", settings.GetSystemConfig())
+		protected.PUT("/settings/system-config", settings.UpdateSystemConfig())
 
 		// Reports
 		protected.GET("/reports/profit", middleware.RequirePermission("admin"), report.ProfitReport(db))
@@ -134,6 +136,10 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.PUT("/backup/settings", middleware.RequirePermission("admin"), backup.SaveBackupSettings(db))
 		protected.GET("/backup/export", middleware.RequirePermission("admin"), backup.ExportBackup(db, cfg))
 		protected.POST("/backup/reset", middleware.RequirePermission("admin"), backup.ResetSystem(db))
+
+		// License
+		protected.GET("/license/status", license.StatusHandler())
+		protected.POST("/license/activate", license.ActivateHandler())
 		protected.POST("/backup/import", middleware.RequirePermission("admin"), backup.ImportBackup(db, cfg))
 
 		// Audit logs
@@ -190,6 +196,11 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.GET("/marketing/near-dormant", marketing.NearDormantCustomers(db))
 
 		// Medical templates
+		protected.GET("/medical/templates", medical.ListTemplates(db))
+		protected.POST("/medical/templates", medical.CreateTemplate(db))
+		protected.GET("/medical/templates/:id", medical.GetTemplate(db))
+		protected.PUT("/medical/templates/:id", medical.UpdateTemplate(db))
+		protected.DELETE("/medical/templates/:id", medical.DeleteTemplate(db))
 		protected.POST("/medical/records/:id/sign", medical.SignRecord(db))
 
 		// Medical records
@@ -249,9 +260,6 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.GET("/analysis/utilization", analysis.Utilization(db))
 
 
-		// License
-		protected.GET("/license/status", license.StatusHandler(db))
-		protected.POST("/license/activate", license.ActivateHandler(db))
 
 	}
 }

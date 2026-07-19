@@ -101,12 +101,6 @@ const router = createRouter({
           meta: { requiresAuth: true, title: '操作日志' },
         },
         {
-          path: 'settings/license',
-          name: 'License',
-          component: () => import('../views/settings/License.vue'),
-          meta: { requiresAuth: true, title: '授权管理' },
-        },
-        {
           path: 'settings/tags',
           name: 'AutoTags',
           component: () => import('../views/settings/AutoTags.vue'),
@@ -131,6 +125,12 @@ const router = createRouter({
           meta: { requiresAuth: true, title: '角色管理' },
         },
         {
+          path: 'settings/license',
+          name: 'License',
+          component: () => import('../views/settings/License.vue'),
+          meta: { requiresAuth: true, title: '授权管理' },
+        },
+        {
           path: 'inventory',
           name: 'Inventory',
           component: () => import('../views/inventory/Index.vue'),
@@ -153,6 +153,12 @@ const router = createRouter({
           name: 'MedicalRecords',
           component: () => import('../views/medical/Index.vue'),
           meta: { requiresAuth: true, title: '病历管理' },
+        },
+        {
+          path: 'medical/templates',
+          name: 'MedicalTemplates',
+          component: () => import('../views/medical/Templates.vue'),
+          meta: { requiresAuth: true, title: '病历模版' },
         },
         {
           path: 'performance',

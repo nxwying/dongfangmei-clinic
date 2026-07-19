@@ -126,3 +126,93 @@ func SignRecord(db *gorm.DB) gin.HandlerFunc {
 		c.JSON(http.StatusOK, record)
 	}
 }
+
+// ======================== Template CRUD ========================
+
+func ListTemplates(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var templates []model.MedicalRecordTemplate
+		q := db.Order("category, sort_order, name")
+		if cat := c.Query("category"); cat != "" {
+			q = q.Where("category = ?", cat)
+		}
+		q.Find(&templates)
+		c.JSON(http.StatusOK, templates)
+	}
+}
+
+func CreateTemplate(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			Name          string `json:"name" binding:"required"`
+			ProcedureName string `json:"procedure_name"`
+			Category      string `json:"category" binding:"required"`
+			Fields        string `json:"fields"`
+			Description   string `json:"description"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误：名称和分类必填"})
+			return
+		}
+		tmpl := model.MedicalRecordTemplate{
+			Name:          req.Name,
+			ProcedureName: req.ProcedureName,
+			Category:      req.Category,
+			Fields:        req.Fields,
+			Description:   req.Description,
+			IsActive:      true,
+		}
+		if err := db.Create(&tmpl).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "创建失败"})
+			return
+		}
+		c.JSON(http.StatusCreated, tmpl)
+	}
+}
+
+func GetTemplate(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+		var tmpl model.MedicalRecordTemplate
+		if err := db.First(&tmpl, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "模版不存在"})
+			return
+		}
+		c.JSON(http.StatusOK, tmpl)
+	}
+}
+
+func UpdateTemplate(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+		var req struct {
+			Name          *string `json:"name"`
+			ProcedureName *string `json:"procedure_name"`
+			Category      *string `json:"category"`
+			Fields        *string `json:"fields"`
+			Description   *string `json:"description"`
+			IsActive      *bool   `json:"is_active"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
+			return
+		}
+		updates := map[string]interface{}{}
+		if req.Name != nil { updates["name"] = *req.Name }
+		if req.ProcedureName != nil { updates["procedure_name"] = *req.ProcedureName }
+		if req.Category != nil { updates["category"] = *req.Category }
+		if req.Fields != nil { updates["fields"] = *req.Fields }
+		if req.Description != nil { updates["description"] = *req.Description }
+		if req.IsActive != nil { updates["is_active"] = *req.IsActive }
+		db.Model(&model.MedicalRecordTemplate{}).Where("id = ?", id).Updates(updates)
+		c.JSON(http.StatusOK, gin.H{"message": "更新成功"})
+	}
+}
+
+func DeleteTemplate(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+		db.Delete(&model.MedicalRecordTemplate{}, id)
+		c.JSON(http.StatusOK, gin.H{"message": "已删除"})
+	}
+}
