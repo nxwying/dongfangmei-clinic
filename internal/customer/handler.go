@@ -51,6 +51,9 @@ func ListCustomers(db *gorm.DB) gin.HandlerFunc {
 		page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 		keyword := c.Query("keyword")
+		if keyword == "" {
+			keyword = c.Query("q")
+		}
 		status := c.Query("status")
 		source := c.Query("source")
 
@@ -65,7 +68,7 @@ func ListCustomers(db *gorm.DB) gin.HandlerFunc {
 
 		if keyword != "" {
 			like := "%" + keyword + "%"
-			query = query.Where("name ILIKE ? OR phone ILIKE ?", like, like)
+			query = query.Where("name LIKE ? OR phone LIKE ?", like, like)
 		}
 		if status != "" {
 			query = query.Where("status = ?", status)

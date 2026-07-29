@@ -1,111 +1,105 @@
 #!/bin/bash
-MYDIR="$(cd "$(dirname "$0")" && pwd)"
 set -e
+MYDIR="$(cd "$(dirname "$0")" && pwd)"
 
 APP_NAME="东芳美诊所管理系统.app"
 APP_SOURCE="$MYDIR/$APP_NAME"
 APP_TARGET="/Applications/$APP_NAME"
-PG_SOURCE="$MYDIR/pg"
-PG_HOME="$HOME/.clinic-mgmt"
-PG_DIR="$PG_HOME/pg"
-PG_DATA="$PG_HOME/data"
+APP_HOME="$HOME/.clinic-mgmt"
+PORT="8080"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 
 echo "================================================"
-echo -e "  ${GREEN}东芳美诊所管理系统 v1.3 — 离线安装${NC}"
+echo -e "  ${GREEN}东芳美诊所管理系统 v1.3 -- 安装${NC}"
 echo "================================================"
 echo ""
 
-# Check macOS
 [ "$(uname)" != "Darwin" ] && { echo -e "${RED}[✗] 仅支持 macOS${NC}"; exit 1; }
-ARCH=$(uname -m)
-echo -e "${GREEN}[✓] macOS $(sw_ver=$(sw_vers -productVersion 2>/dev/null || echo "?"); echo $sw_ver) / ${ARCH}${NC}"
+echo -e "${GREEN}[✓] macOS $(sw_vers -productVersion 2>/dev/null || echo "?")$(echo " / $(uname -m)")${NC}"
 
-# Check bundled PostgreSQL
-[ ! -f "$PG_SOURCE/bin/pg_ctl" ] && { echo -e "${RED}[✗] 安装包损坏：缺少 PostgreSQL${NC}"; exit 1; }
-echo -e "${GREEN}[✓] 内置 PostgreSQL 就绪${NC}"
-
-# Check for previous installation
-if [ -d "$APP_TARGET" ] || [ -d "$PG_DIR" ]; then
-  echo -e "${YELLOW}检测到已有安装，将覆盖更新...${NC}"
-  # Stop any running services first
-  lsof -ti :8080 2>/dev/null | xargs kill -9 2>/dev/null || true
-  if [ -f "$PG_DIR/bin/pg_ctl" ] && [ -f "$PG_DATA/PG_VERSION" ]; then
-    "$PG_DIR/bin/pg_ctl" -D "$PG_DATA" stop 2>/dev/null || true
-    sleep 1
-  fi
-fi
-
-# Step 1: Copy files
+# Stop old server
 echo ""
-echo -e "${YELLOW}[1/4] 复制文件到本地...${NC}"
-mkdir -p "$PG_HOME"
-rm -rf "$PG_DIR" 2>/dev/null || true
-rm -rf "$APP_TARGET" 2>/dev/null || true
-
-if command -v ditto &>/dev/null; then
-  ditto --noqtn "$PG_SOURCE" "$PG_DIR"
-  ditto --noqtn "$APP_SOURCE" "$APP_TARGET"
-else
-  cp -R "$PG_SOURCE" "$PG_DIR"
-  cp -R "$APP_SOURCE" "$APP_TARGET"
-fi
-# Remove quarantine
-xattr -rd com.apple.quarantine "$PG_HOME" 2>/dev/null || true
-xattr -rd com.apple.quarantine "$APP_TARGET" 2>/dev/null || true
-echo -e "${GREEN}[✓] 文件已复制${NC} ($APP_TARGET)"
-
-# Step 2: Initialize database
-echo -e "${YELLOW}[2/4] 初始化数据库...${NC}"
-export DYLD_LIBRARY_PATH="$PG_DIR/lib:$DYLD_LIBRARY_PATH"
-export PATH="$PG_DIR/bin:$PATH"
-mkdir -p "$PG_DATA"
-
-if [ ! -f "$PG_DATA/PG_VERSION" ]; then
-  "$PG_DIR/bin/initdb" -D "$PG_DATA" --encoding=UTF8 --locale=C 2>/dev/null
-  echo -e "${GREEN}[✓] 数据库已初始化${NC}"
-else
-  echo -e "${GREEN}[✓] 数据库已存在${NC}"
-fi
-
-# Step 3: Start PostgreSQL and create database
-echo -e "${YELLOW}[3/4] 配置数据库...${NC}"
-"$PG_DIR/bin/pg_ctl" -D "$PG_DATA" -l "$PG_DATA/pg.log" stop 2>/dev/null || true
+echo -e "${YELLOW}[1/3] 停止旧版本...${NC}"
+lsof -ti :$PORT 2>/dev/null | xargs kill -9 2>/dev/null || true
+launchctl remove com.clinic.server 2>/dev/null || true
 sleep 1
-"$PG_DIR/bin/pg_ctl" -D "$PG_DATA" -l "$PG_DATA/pg.log" start 2>/dev/null || true
+echo -e "${GREEN}  [✓] 已停止${NC}"
+
+# Copy to Applications
+echo -e "${YELLOW}[2/3] 安装到应用程序目录...${NC}"
+rm -rf "$APP_TARGET" 2>/dev/null || true
+mkdir -p "$APP_HOME/data"
+cp -R "$APP_SOURCE" "$APP_TARGET"
+echo -e "${GREEN}  [✓] 已安装到 $APP_TARGET${NC}"
+
+# Start server via launchctl
+echo -e "${YELLOW}[3/3] 启动服务...${NC}"
+cat > /tmp/com.clinic.server.plist << PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.clinic.server</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$APP_TARGET/Contents/MacOS/clinic-server</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>$APP_HOME</string>
+    <key>KeepAlive</key>
+    <false/>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$APP_HOME/server.log</string>
+    <key>StandardErrorPath</key>
+    <string>$APP_HOME/server.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>DB_DRIVER</key>
+        <string>sqlite</string>
+        <key>DB_DSN</key>
+        <string>$APP_HOME/data/clinic.db</string>
+    </dict>
+</dict>
+</plist>
+PLISTEOF
+
+launchctl load /tmp/com.clinic.server.plist
+sleep 3
+
+# Verify
+lsof -ti :$PORT >/dev/null 2>&1 && echo -e "${GREEN}  [✓] 服务已启动${NC}" || echo -e "${RED}  [✗] 启动失败，查看日志: $APP_HOME/server.log${NC}"
+
+# Create start/stop scripts
+cat > "$APP_HOME/start.command" << 'SCEOF'
+#!/bin/bash
+launchctl load /tmp/com.clinic.server.plist 2>/dev/null
 sleep 2
+open "http://localhost:8080/"
+SCEOF
+chmod +x "$APP_HOME/start.command"
 
-# Wait for PostgreSQL to be ready
-for i in 1 2 3 4 5; do
-  if "$PG_DIR/bin/pg_isready" -q 2>/dev/null; then
-    echo -e "${GREEN}[✓] PostgreSQL 运行中${NC}"
-    break
-  fi
-  sleep 1
-done
+cat > "$APP_HOME/stop.command" << 'SCEOF'
+#!/bin/bash
+launchctl remove com.clinic.server 2>/dev/null
+lsof -ti :8080 2>/dev/null | xargs kill -9 2>/dev/null
+echo "服务已停止"
+SCEOF
+chmod +x "$APP_HOME/stop.command"
 
-"$PG_DIR/bin/psql" -p 5432 -d postgres -c "CREATE USER clinic WITH PASSWORD 'clinic123';" 2>/dev/null || true
-"$PG_DIR/bin/createdb" -p 5432 clinic 2>/dev/null || true
-"$PG_DIR/bin/psql" -p 5432 -d postgres -c "ALTER DATABASE clinic OWNER TO clinic;" 2>/dev/null || true
-echo -e "${GREEN}[✓] 数据库就绪${NC}"
-
-# Step 4: Save config
-echo "$PG_DIR" > "$PG_HOME/pg-path.txt"
-
-# Done!
-echo -e "${YELLOW}[4/4] 安装完成${NC}"
 echo ""
 echo "================================================"
-echo -e "  ${GREEN}安装完成！${NC}"
+echo -e "  ${GREEN}[✓] 安装完成！${NC}"
+echo ""
+echo "  服务已启动: http://localhost:$PORT/"
+echo "  默认账号: admin    密码: admin123"
+echo "  数据目录: $APP_HOME/data"
+echo ""
+echo "  启动: $APP_HOME/start.command"
+echo "  停止: $APP_HOME/stop.command"
 echo "================================================"
 echo ""
-echo "打开方式："
-echo "  1. 打开 Finder → 应用程序 → 东芳美诊所管理系统"
-echo "  2. 双击启动，浏览器自动打开 http://localhost:8080"
-echo ""
-echo "账号：admin / admin123"
-echo ""
-
-# Launch Finder
-open /Applications 2>/dev/null || true
+open "http://localhost:$PORT/"

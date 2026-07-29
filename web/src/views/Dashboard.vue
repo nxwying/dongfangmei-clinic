@@ -9,10 +9,10 @@
     </el-card>
 
     <!-- Row 1: KPI cards -->
-    <el-row :gutter="12" style="margin-bottom:12px">
+    <el-row :gutter="12" style="margin-bottom:12px;display:flex;flex-wrap:wrap">
 
-      <el-col :span="4">
-        <el-card>
+      <el-col :span="6" style="display:flex">
+        <el-card style="flex:1">
           <div style="text-align:center;padding:10px 0">
             <div style="font-size:26px;font-weight:700;color:#67c23a">{{ newCustomers }}</div>
             <div style="font-size:13px;color:#909399;margin-top:4px">今日新增客户</div>
@@ -22,8 +22,8 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="4">
-        <el-card>
+      <el-col :span="6">
+        <el-card style="height:100%">
           <div style="text-align:center;padding:10px 0">
             <div style="font-size:26px;font-weight:700;color:#e6a23c">{{ appts.length }}</div>
             <div style="font-size:13px;color:#909399;margin-top:4px">今日预约（已到店 {{ checkedInCount }}）</div>
@@ -33,8 +33,8 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="4">
-        <el-card>
+      <el-col :span="6">
+        <el-card style="height:100%">
           <div style="text-align:center;padding:10px 0">
             <div style="font-size:26px;font-weight:700;color:#f56c6c">{{ dayStats.refunds }}</div>
             <div style="font-size:13px;color:#909399;margin-top:4px">今日退款</div>
@@ -42,8 +42,8 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="4">
-        <el-card>
+      <el-col :span="6">
+        <el-card style="height:100%">
           <div style="text-align:center;padding:10px 0">
             <div style="font-size:26px;font-weight:700;color:#b37feb">¥{{ (dayStats.recharge_total||0).toFixed(2) }}</div>
             <div style="font-size:13px;color:#909399;margin-top:4px">今日充值</div>
@@ -94,8 +94,8 @@
 
     <!-- Row 3: 今日预约 + 快捷操作 + 今日提醒 -->
     <el-row :gutter="12" style="margin-bottom:12px">
-      <el-col :span="14">
-        <el-card>
+      <el-col :span="14" style="display:flex;flex-direction:column">
+        <el-card style="flex:1">
           <template #header>
             <div style="display:flex;align-items:center;justify-content:space-between">
               <b>今日预约</b>
@@ -127,7 +127,7 @@
           </div>
         </el-card>
         <!-- Staff on duty -->
-        <el-card>
+        <el-card style="margin-top:12px">
           <template #header><b>今日值班</b></template>
           <div v-if="staffList.length > 0" style="display:flex;flex-wrap:wrap;gap:8px">
             <div v-for="s in staffList" :key="s.id"
@@ -312,8 +312,8 @@
 
     <!-- Row 4: 本周收入趋势 + 项目销售排行（含客单价） -->
     <el-row :gutter="12" style="margin-bottom:12px">
-      <el-col :span="14">
-        <el-card>
+      <el-col :span="14" style="display:flex;flex-direction:column">
+        <el-card style="flex:1">
           <template #header><b>本周毛收入趋势</b></template>
           <div v-if="week.length" style="display:flex;align-items:flex-end;gap:6px;height:160px;padding:8px 0">
             <div v-for="d in week" :key="d.date" style="flex:1;display:flex;flex-direction:column;align-items:center;height:100%">
@@ -675,6 +675,9 @@ const custData=c.data;const custList=Array.isArray(custData)?custData:(custData?
 
 <style scoped>
 .el-card { border-radius: 8px; transition: box-shadow .2s; }
+.el-row--flex { display: flex; flex-wrap: wrap; }
+.el-row--flex > .el-col { display: flex; }
+.el-row--flex > .el-col > .el-card { flex: 1; }
 .el-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
 .el-table { border-radius: 6px; overflow: hidden; }
 .el-row { margin-bottom: 16px; }

@@ -2,6 +2,10 @@
   <div class="login-container">
     <div class="login-card">
       <h2 class="login-title">{{ appName }}</h2>
+      <div v-if="licenseStatus && !licenseStatus.activated" style="text-align:center;margin:-8px 0 16px;font-size:13px">
+        <span v-if="!licenseStatus.trial_expired" style="color:#e6a23c">试用期剩余 {{ licenseStatus.trial_remaining }} 天</span>
+        <span v-else style="color:#f56c6c">试用期已结束，请激活系统</span>
+      </div>
       <el-form ref="formRef" :model="form" :rules="rules" @keyup.enter="handleLogin">
         <el-form-item prop="username">
           <el-input v-model="form.username" placeholder="用户名" size="large" :prefix-icon="User" />
@@ -30,11 +34,16 @@ import { getSystemConfig } from '../api/settings'
 const router = useRouter()
 const auth = useAuthStore()
 const appName = ref('医美诊所管理系统')
+const licenseStatus = ref<LicenseStatus|null>(null)
 
 onMounted(async () => {
   try {
     const cfg = await getSystemConfig()
     if (cfg?.app_name) appName.value = cfg.app_name
+  } catch {}
+  try {
+    const lic = await getLicenseStatus()
+    licenseStatus.value = lic
   } catch {}
 })
 const formRef = ref()

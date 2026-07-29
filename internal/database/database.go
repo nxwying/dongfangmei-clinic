@@ -5,13 +5,21 @@ import (
 	"log"
 
 	"clinic-mgmt/internal/model"
+	"github.com/glebarez/sqlite"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-func InitDB(dsn string) *gorm.DB {
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+func InitDB(dsn string, driver string) *gorm.DB {
+	var dialector gorm.Dialector
+	switch driver {
+	case "sqlite":
+		dialector = sqlite.Open(dsn)
+	default:
+		dialector = postgres.Open(dsn)
+	}
+	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {

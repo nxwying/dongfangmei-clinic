@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>东芳美诊所 - 授权码生成工具</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); display:flex; justify-content:center; align-items:center; min-height:100vh; padding:20px }
+.card { background:#fff; border-radius:12px; padding:32px; width:520px; max-width:100%; box-shadow:0 8px 40px rgba(0,0,0,.15) }
+h1 { font-size:20px; color:#303133; margin-bottom:4px }
+.subtitle { font-size:13px; color:#909399; margin-bottom:24px }
+.form-group { margin-bottom:16px }
+label { display:block; font-size:13px; color:#606266; margin-bottom:4px; font-weight:500 }
+input,select { width:100%; padding:10px 12px; border:1px solid #dcdfe6; border-radius:6px; font-size:14px; outline:none; transition:border-color .2s }
+input:focus,select:focus { border-color:#667eea }
+.row { display:flex; gap:8px }
+.row input { flex:1 }
+.btn { padding:10px 20px; border:none; border-radius:6px; font-size:14px; cursor:pointer; transition:opacity .2s }
+.btn:hover { opacity:.85 }
+.btn-primary { background:linear-gradient(135deg,#667eea,#764ba2); color:#fff }
+.btn-success { background:#67c23a; color:#fff }
+.btn-default { background:#f0f2f5; color:#606266 }
+.result { margin-top:16px; padding:16px; background:#f5f7fa; border-radius:8px; display:none }
+.result.show { display:block }
+.result .code { font-size:22px; font-weight:700; letter-spacing:2px; text-align:center; padding:16px; background:#fff; border:2px dashed #667eea; border-radius:6px; margin-bottom:12px; color:#303133; font-family:"Courier New",monospace; user-select:all }
+.result .info { font-size:13px; color:#606266; line-height:1.8 }
+.result .info span { color:#909399 }
+.actions { display:flex; gap:8px; margin-top:12px }
+.actions .btn { flex:1 }
+.tabs { display:flex; border-bottom:1px solid #e4e7ed; margin-bottom:20px }
+.tab { padding:8px 16px; cursor:pointer; font-size:13px; color:#909399; border-bottom:2px solid transparent; transition:all .2s }
+.tab.active { color:#667eea; border-bottom-color:#667eea }
+.tab-panel { display:none }
+.tab-panel.active { display:block }
+footer { margin-top:16px; text-align:center; font-size:12px; color:#c0c4cc }
+.loader { display:inline-block; width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; animation:spin .6s linear infinite; vertical-align:middle; margin-right:6px }
+@keyframes spin { to { transform:rotate(360deg) } }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>授权码生成工具</h1>
+  <p class="subtitle">东芳美诊所管理系统 — 输入机器码生成解锁码</p>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('basic')">快速解锁码</div>
+    <div class="tab" onclick="switchTab('full')">完整授权文件</div>
+  </div>
+
+  <div id="tab-basic" class="tab-panel active">
+    <div class="form-group">
+      <label for="machine">机器码</label>
+      <div class="row">
+        <input id="machine" placeholder="例如：7964-1014-BECF-346F" oninput="this.value=this.value.toUpperCase()" autofocus>
+        <button class="btn btn-default" onclick="pasteFromClipboard()" title="粘贴">📋</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="unlock">生成的解锁码</label>
+      <div class="row">
+        <input id="unlock" placeholder="点击下方按钮生成" readonly style="background:#f5f7fa;font-family:monospace;font-weight:700;font-size:18px;letter-spacing:2px">
+        <button class="btn btn-default" onclick="copyResult()" title="复制">📋</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="genBtn" onclick="generateCode()" style="width:100%">生 成 解 锁 码</button>
+    <div id="result-basic" class="result">
+      <div class="code" id="codeDisplay"></div>
+      <div class="info">
+        <div>机器码：<span id="infoMachine"></span></div>
+        <div>解锁码：<span id="infoCode"></span></div>
+        <div>此解锁码在软件「系统设置→授权管理」中输入即可激活</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-full" class="tab-panel">
+    <div class="form-group">
+      <label for="fullMachine">机器码</label>
+      <input id="fullMachine" placeholder="7964-1014-BECF-346F" oninput="this.value=this.value.toUpperCase()" autofocus>
+    </div>
+    <div class="form-group">
+      <label for="customer">客户名称</label>
+      <input id="customer" placeholder="输入诊所名称">
+    </div>
+    <div class="row" style="gap:12px">
+      <div class="form-group" style="flex:1">
+        <label for="expireDays">有效期</label>
+        <select id="expireDays">
+          <option value="0">永久</option>
+          <option value="30">30天</option>
+          <option value="90">90天</option>
+          <option value="180">180天</option>
+          <option value="365">1年</option>
+        </select>
+      </div>
+      <div class="form-group" style="flex:1">
+        <label for="features">授权功能</label>
+        <select id="features">
+          <option value="all">全部功能</option>
+          <option value="basic">基础功能</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-success" id="genFullBtn" onclick="generateFullLicense()" style="width:100%">生 成 授 权 文 件</button>
+    <div id="result-full" class="result">
+      <div class="info">
+        <div id="fullContent" style="font-size:12px;line-height:1.6"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>东芳美诊所管理系统 — 授权生成工具 v2.0</footer>
+</div>
+
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+async function generateCode() {
+  const machine = document.getElementById('machine').value.trim();
+  if (!machine) { alert('请输入机器码'); return; }
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="loader"></span>生成中...';
+  try {
+    const res = await fetch('{{.BaseURL}}/generate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ machine_code: machine })
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    document.getElementById('unlock').value = data.unlock_code;
+    document.getElementById('codeDisplay').textContent = data.unlock_code;
+    document.getElementById('infoMachine').textContent = machine;
+    document.getElementById('infoCode').textContent = data.unlock_code;
+    document.getElementById('result-basic').classList.add('show');
+  } catch(e) { alert('生成失败: ' + e.message); }
+  finally { btn.disabled = false; btn.innerHTML = '生 成 解 锁 码'; }
+}
+
+async function generateFullLicense() {
+  const machine = document.getElementById('fullMachine').value.trim();
+  const customer = document.getElementById('customer').value.trim();
+  if (!machine) { alert('请输入机器码'); return; }
+  if (!customer) { alert('请输入客户名称'); return; }
+  const btn = document.getElementById('genFullBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="loader"></span>生成中...';
+  try {
+    const expireDays = parseInt(document.getElementById('expireDays').value);
+    const features = document.getElementById('features').value;
+    const res = await fetch('{{.BaseURL}}/generate-full', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ machine_code: machine, customer, expire_days: expireDays, features })
+    });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    document.getElementById('fullContent').innerHTML =
+      '<pre style="font-size:12px;line-height:1.5;background:#fff;padding:12px;border:1px solid #e4e7ed;border-radius:4px;overflow:auto">' +
+      data.content + '</pre>' +
+      '<div style="margin-top:8px"><a href="' + data.download_url + '" class="btn btn-success" download>📥 下载授权文件</a></div>';
+    document.getElementById('result-full').classList.add('show');
+  } catch(e) { alert('生成失败: ' + e.message); }
+  finally { btn.disabled = false; btn.innerHTML = '生 成 授 权 文 件'; }
+}
+
+function pasteFromClipboard() {
+  navigator.clipboard.readText().then(t => {
+    document.getElementById('machine').value = t.toUpperCase();
+  }).catch(() => alert('无法读取剪贴板'));
+}
+
+function copyResult() {
+  const code = document.getElementById('unlock').value;
+  if (!code) return;
+  navigator.clipboard.writeText(code).then(() => alert('已复制解锁码'));
+}
+</script>
+</body>
+</html>

@@ -52,3 +52,19 @@ installer_build/
 # License generator binaries
 tools/license-generator/license-generator-*
 tools/license-generator/dist/
+
+# Generated installer packages
+东芳美诊所管理系统_*
+
+# Package build artifacts
+package/东芳美诊所管理系统.app/
+package/windows/
+package/server-*
+
+# License maker build artifacts
+tools/license-maker/license-maker
+tools/license-maker/license-maker.exe
+tools/license-maker/授权码生成器.app/
+
+# Private keys (development only, NOT for production)
+tools/**/dev-private.pem

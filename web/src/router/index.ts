@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Layout from '../components/Layout.vue'
-
 const router = createRouter({
   history: createWebHistory("/v2/"),
   routes: [
@@ -45,7 +44,6 @@ const router = createRouter({
           component: () => import('../views/members/Index.vue'),
           meta: { requiresAuth: true, title: '会员管理' },
         },
-
         {
           path: 'pos',
           name: 'Checkout',
@@ -126,7 +124,7 @@ const router = createRouter({
         },
         {
           path: 'settings/license',
-          name: 'License',
+          name: 'SettingsLicense',
           component: () => import('../views/settings/License.vue'),
           meta: { requiresAuth: true, title: '授权管理' },
         },
@@ -178,7 +176,6 @@ const router = createRouter({
           component: () => import('../views/documents/Inspection.vue'),
           meta: { requiresAuth: true, title: '检查模式' },
         },
-
         {
           path: 'data',
           name: 'DataCenter',
@@ -242,7 +239,6 @@ const router = createRouter({
     },
   ],
 })
-
 router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token')
   if (to.meta.requiresAuth !== false && !token) {
@@ -253,5 +249,4 @@ router.beforeEach((to, _from, next) => {
     next()
   }
 })
-
 export default router

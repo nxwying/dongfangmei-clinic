@@ -66,14 +66,14 @@ func List(db *gorm.DB) gin.HandlerFunc {
 			query = query.Where("doc_type = ?", docType)
 		}
 		if product := c.Query("product_name"); product != "" {
-			query = query.Where("product_name ILIKE ?", "%"+product+"%")
+			query = query.Where("product_name LIKE ?", "%"+product+"%")
 		}
 		if supplier := c.Query("supplier"); supplier != "" {
-			query = query.Where("supplier ILIKE ?", "%"+supplier+"%")
+			query = query.Where("supplier LIKE ?", "%"+supplier+"%")
 		}
 		if keyword := c.Query("keyword"); keyword != "" {
 			like := "%" + keyword + "%"
-			query = query.Where("title ILIKE ? OR product_name ILIKE ? OR supplier ILIKE ? OR serial_no ILIKE ?",
+			query = query.Where("title LIKE ? OR product_name LIKE ? OR supplier LIKE ? OR serial_no LIKE ?",
 				like, like, like, like)
 		}
 		if start := c.Query("start_date"); start != "" {

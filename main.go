@@ -70,7 +70,7 @@ func serveFrontend(c *gin.Context) {
 
 func main() {
 	cfg := config.Load()
-	db := database.InitDB(cfg.DBDsn)
+	db := database.InitDB(cfg.DBDsn, cfg.DBDriver)
 
 	seed.Seed(db)
 

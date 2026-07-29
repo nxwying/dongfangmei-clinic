@@ -9,6 +9,7 @@ import (
 	"clinic-mgmt/internal/expense"
 	"clinic-mgmt/internal/membership"
 	"clinic-mgmt/internal/middleware"
+	"clinic-mgmt/internal/license"
 	"clinic-mgmt/internal/order"
 	pkgHandler "clinic-mgmt/internal/package"
 	"clinic-mgmt/internal/backup"
@@ -21,7 +22,6 @@ import (
 	"clinic-mgmt/internal/photo"
 	"clinic-mgmt/internal/commission"
 	"clinic-mgmt/internal/kpi"
-	"clinic-mgmt/internal/license"
 	"clinic-mgmt/internal/training"
 	"clinic-mgmt/internal/analysis"
 	"clinic-mgmt/internal/consent"
@@ -41,10 +41,12 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 
 	// Public routes
 	api.POST("/auth/login", authHandler.Login(db))
+	api.GET("/settings/system-config", settings.GetSystemConfig())
 
 	// Protected routes
 	protected := api.Group("")
 	protected.Use(middleware.AuthMiddleware())
+	protected.Use(middleware.LicenseCheck(db))
 	{
 		// Profile
 		protected.GET("/auth/profile", authHandler.GetProfile(db))
@@ -106,7 +108,6 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.GET("/settings/package-templates", settings.ListPackageTemplates(db))
 		protected.POST("/settings/package-templates", settings.CreatePackageTemplate(db))
 		protected.PUT("/settings/package-templates/:id", settings.UpdatePackageTemplate(db))
-		protected.GET("/settings/system-config", settings.GetSystemConfig())
 		protected.PUT("/settings/system-config", settings.UpdateSystemConfig())
 
 		// Reports
@@ -137,9 +138,6 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.GET("/backup/export", middleware.RequirePermission("admin"), backup.ExportBackup(db, cfg))
 		protected.POST("/backup/reset", middleware.RequirePermission("admin"), backup.ResetSystem(db))
 
-		// License
-		protected.GET("/license/status", license.StatusHandler())
-		protected.POST("/license/activate", license.ActivateHandler())
 		protected.POST("/backup/import", middleware.RequirePermission("admin"), backup.ImportBackup(db, cfg))
 
 		// Audit logs
@@ -261,5 +259,8 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 
 
 
+
+		protected.GET("/license/status", license.StatusHandler(db))
+		protected.POST("/license/activate", license.ActivateHandler(db))
 	}
 }

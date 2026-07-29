@@ -152,7 +152,7 @@ func ListOrders(db *gorm.DB) gin.HandlerFunc {
 			query = query.Where("status = ?", status)
 		}
 		if q := c.Query("q"); q != "" {
-			query = query.Where("customer_id IN (SELECT id FROM customers WHERE name ILIKE ? OR phone ILIKE ?)", "%"+q+"%", "%"+q+"%")
+			query = query.Where("customer_id IN (SELECT id FROM customers WHERE name LIKE ? OR phone LIKE ?)", "%"+q+"%", "%"+q+"%")
 		}
 
 		var orders []model.Order
