@@ -68,3 +68,4 @@ tools/license-maker/授权码生成器.app/
 
 # Private keys (development only, NOT for production)
 tools/**/dev-private.pem
+clinic-server-new

@@ -3,6 +3,7 @@ package training
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"clinic-mgmt/internal/model"
 
@@ -28,11 +29,13 @@ func List(db *gorm.DB) gin.HandlerFunc {
 		if mandatory := c.Query("is_mandatory"); mandatory != "" {
 			q = q.Where("is_mandatory=?", mandatory == "true")
 		}
+		today := time.Now().Format("2006-01-02")
+		thirtyDays := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
 		if certExpiring := c.Query("cert_expiring"); certExpiring == "true" {
-			q = q.Where("cert_expiry != '' AND cert_expiry >= CURRENT_DATE AND cert_expiry <= CURRENT_DATE + INTERVAL '30 days'")
+			q = q.Where("cert_expiry != '' AND cert_expiry >= ? AND cert_expiry <= ?", today, thirtyDays)
 		}
 		if certExpired := c.Query("cert_expired"); certExpired == "true" {
-			q = q.Where("cert_expiry != '' AND cert_expiry < CURRENT_DATE")
+			q = q.Where("cert_expiry != '' AND cert_expiry < ?", today)
 		}
 		q.Find(&list)
 		c.JSON(http.StatusOK, list)
@@ -67,7 +70,6 @@ func Update(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误"})
 			return
 		}
-		// Don't allow changing ID
 		input.ID = uint(id)
 		if err := db.Model(&t).Updates(input).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "更新失败"})
@@ -89,6 +91,9 @@ func Delete(db *gorm.DB) gin.HandlerFunc {
 
 func Stats(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		today := time.Now().Format("2006-01-02")
+		thirtyDays := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
+
 		type statsResponse struct {
 			Total    int64   `json:"total"`
 			Hours    float64 `json:"hours"`
@@ -103,8 +108,8 @@ func Stats(db *gorm.DB) gin.HandlerFunc {
 		db.Model(&model.Training{}).Select("COUNT(*)").Scan(&resp.Total)
 		db.Model(&model.Training{}).Select("COALESCE(SUM(hours),0)").Scan(&resp.Hours)
 		db.Model(&model.Training{}).Select("COUNT(DISTINCT user_id)").Scan(&resp.Staff)
-		db.Model(&model.Training{}).Where("cert_expiry != '' AND cert_expiry >= CURRENT_DATE AND cert_expiry <= CURRENT_DATE + INTERVAL '30 days'").Count(&resp.Expiring)
-		db.Model(&model.Training{}).Where("cert_expiry != '' AND cert_expiry < CURRENT_DATE").Count(&resp.Expired)
+		db.Model(&model.Training{}).Where("cert_expiry != '' AND cert_expiry >= ? AND cert_expiry <= ?", today, thirtyDays).Count(&resp.Expiring)
+		db.Model(&model.Training{}).Where("cert_expiry != '' AND cert_expiry < ?", today).Count(&resp.Expired)
 		db.Model(&model.Training{}).Select("COALESCE(SUM(points),0)").Scan(&resp.Points)
 		db.Model(&model.Training{}).Select("COALESCE(SUM(cost),0)").Scan(&resp.Cost)
 		var passed, total int64
@@ -138,7 +143,6 @@ func PerStaffStats(db *gorm.DB) gin.HandlerFunc {
 			JOIN users u ON u.id=t.user_id
 			GROUP BY t.user_id, u.real_name
 			ORDER BY total_hours DESC`).Scan(&rows)
-		// Calculate pass rate per staff
 		for i := range rows {
 			var passed, total int64
 			db.Model(&model.Training{}).Where("user_id = ? AND passed = 'passed'", rows[i].UserID).Count(&passed)
@@ -151,12 +155,11 @@ func PerStaffStats(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// Category分布统计
 func CategoryStats(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		type catStat struct {
-			Category string `json:"category"`
-			Count    int64  `json:"count"`
+			Category string  `json:"category"`
+			Count    int64   `json:"count"`
 			Hours    float64 `json:"hours"`
 		}
 		var rows []catStat
@@ -166,7 +169,6 @@ func CategoryStats(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// 月度培训统计趋势
 func MonthlyStats(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		type monStat struct {
@@ -176,12 +178,12 @@ func MonthlyStats(db *gorm.DB) gin.HandlerFunc {
 			Cost  float64 `json:"cost"`
 		}
 		var rows []monStat
-		db.Raw(`SELECT SUBSTRING(date,1,7) as mon,
+		db.Raw(`SELECT SUBSTR(date,1,7) as mon,
 			COUNT(*) as count,
 			COALESCE(SUM(hours),0) as hours,
 			COALESCE(SUM(cost),0) as cost
 			FROM trainings WHERE date != ''
-			GROUP BY SUBSTRING(date,1,7)
+			GROUP BY SUBSTR(date,1,7)
 			ORDER BY mon DESC LIMIT 12`).Scan(&rows)
 		c.JSON(http.StatusOK, rows)
 	}

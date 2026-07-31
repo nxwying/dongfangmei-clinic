@@ -9,7 +9,6 @@ import (
 	"clinic-mgmt/internal/expense"
 	"clinic-mgmt/internal/membership"
 	"clinic-mgmt/internal/middleware"
-	"clinic-mgmt/internal/license"
 	"clinic-mgmt/internal/order"
 	pkgHandler "clinic-mgmt/internal/package"
 	"clinic-mgmt/internal/backup"
@@ -46,7 +45,6 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	// Protected routes
 	protected := api.Group("")
 	protected.Use(middleware.AuthMiddleware())
-	protected.Use(middleware.LicenseCheck(db))
 	{
 		// Profile
 		protected.GET("/auth/profile", authHandler.GetProfile(db))
@@ -67,7 +65,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.POST("/customers", customer.CreateCustomer(db))
 		protected.GET("/customers/:id", customer.GetCustomer(db))
 		protected.PUT("/customers/:id", customer.UpdateCustomer(db))
-		protected.DELETE("/customers/:id", customer.DeleteCustomer(db))
+		protected.DELETE("/customers/:id", middleware.RequirePermission("admin"), customer.DeleteCustomer(db))
 
 		// Customer follow-ups
 		protected.GET("/customers/:id/followups", customer.ListFollowUps(db))
@@ -78,7 +76,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.GET("/customers/:id/membership", membership.GetMembership(db))
 
 		// Recharge
-		protected.POST("/customers/:id/recharge", membership.Recharge(db))
+		protected.POST("/customers/:id/recharge", middleware.RequirePermission("admin"), membership.Recharge(db))
 
 		// Customer packages
 		protected.GET("/customers/:id/packages", pkgHandler.ListPackages(db))
@@ -96,7 +94,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.GET("/orders", order.ListOrders(db))
 		protected.GET("/orders/:id", order.GetOrder(db))
 		protected.POST("/orders/:id/pay", order.PayOrder(db))
-		protected.POST("/orders/:id/refund", order.RefundOrder(db))
+		protected.POST("/orders/:id/refund", middleware.RequirePermission("admin"), order.RefundOrder(db))
 
 		// Package redemption (POS payment via package)
 		protected.POST("/orders/:id/pay/package", pkgHandler.RedeemPackage(db))
@@ -108,7 +106,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.GET("/settings/package-templates", settings.ListPackageTemplates(db))
 		protected.POST("/settings/package-templates", settings.CreatePackageTemplate(db))
 		protected.PUT("/settings/package-templates/:id", settings.UpdatePackageTemplate(db))
-		protected.PUT("/settings/system-config", settings.UpdateSystemConfig())
+		protected.PUT("/settings/system-config", middleware.RequirePermission("admin"), settings.UpdateSystemConfig())
 
 		// Reports
 		protected.GET("/reports/profit", middleware.RequirePermission("admin"), report.ProfitReport(db))
@@ -184,9 +182,9 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 
 		// Tag Rules
 		protected.GET("/tag-rules", label.ListRules(db))
-		protected.POST("/tag-rules", label.CreateRule(db))
+		protected.POST("/tag-rules", middleware.RequirePermission("admin"), label.CreateRule(db))
 		protected.PUT("/tag-rules/:id", label.UpdateRule(db))
-		protected.DELETE("/tag-rules/:id", label.DeleteRule(db))
+		protected.DELETE("/tag-rules/:id", middleware.RequirePermission("admin"), label.DeleteRule(db))
 		protected.POST("/tag-rules/apply", label.ApplyRules(db))
 		// Marketing
 		protected.GET("/marketing/dormant", marketing.DormantCustomers(db))
@@ -198,7 +196,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.POST("/medical/templates", medical.CreateTemplate(db))
 		protected.GET("/medical/templates/:id", medical.GetTemplate(db))
 		protected.PUT("/medical/templates/:id", medical.UpdateTemplate(db))
-		protected.DELETE("/medical/templates/:id", medical.DeleteTemplate(db))
+		protected.DELETE("/medical/templates/:id", middleware.RequirePermission("admin"), medical.DeleteTemplate(db))
 		protected.POST("/medical/records/:id/sign", medical.SignRecord(db))
 
 		// Medical records
@@ -206,20 +204,20 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.GET("/medical/records", medical.ListAll(db))
 		protected.GET("/medical/records/:id", medical.GetRecord(db))
 		protected.PUT("/medical/records/:id", medical.UpdateRecord(db))
-		protected.DELETE("/medical/records/:id", medical.DeleteRecord(db))
+		protected.DELETE("/medical/records/:id", middleware.RequirePermission("admin"), medical.DeleteRecord(db))
 		protected.GET("/customers/:id/medical-records", medical.ListRecords(db))
 		// Commission
 		protected.GET("/commission/rules", commission.ListRules(db))
-		protected.POST("/commission/rules", commission.CreateRule(db))
+		protected.POST("/commission/rules", middleware.RequirePermission("admin"), commission.CreateRule(db))
 		protected.PUT("/commission/rules/:id", commission.UpdateRule(db))
-		protected.DELETE("/commission/rules/:id", commission.DeleteRule(db))
+		protected.DELETE("/commission/rules/:id", middleware.RequirePermission("admin"), commission.DeleteRule(db))
 		protected.POST("/commission/calculate", commission.Calculate(db))
 		protected.GET("/commission/results", commission.ListResults(db))
 		protected.PUT("/commission/results/:id/confirm", commission.ConfirmResult(db))
 
 		// KPI
 		protected.GET("/kpi/targets", kpi.ListTargets(db))
-		protected.POST("/kpi/targets", kpi.SaveTarget(db))
+		protected.POST("/kpi/targets", middleware.RequirePermission("admin"), kpi.SaveTarget(db))
 		protected.GET("/kpi/leaderboard", kpi.Leaderboard(db))
 
 		// Training
@@ -260,7 +258,5 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 
 
 
-		protected.GET("/license/status", license.StatusHandler(db))
-		protected.POST("/license/activate", license.ActivateHandler(db))
 	}
 }

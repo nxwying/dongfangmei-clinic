@@ -124,7 +124,6 @@ func GetOrder(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		system.WriteAuditLog(db, c, "update", "order", uint(id), "支付订单")
 		c.JSON(http.StatusOK, order)
 	}
 }
@@ -250,6 +249,8 @@ func PayOrder(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+
+		system.WriteAuditLog(db, c, "pay", "order", uint(id), fmt.Sprintf("支付订单 ¥%.2f", order.FinalAmount))
 
 		// Return updated order
 		db.Preload("Items").Preload("Payments").Preload("Customer").First(&order, id)

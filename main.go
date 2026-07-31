@@ -11,6 +11,7 @@ import (
 
 	"clinic-mgmt/internal/config"
 	"clinic-mgmt/internal/database"
+	"clinic-mgmt/internal/dbcompat"
 	"clinic-mgmt/internal/backup"
 	"clinic-mgmt/internal/handler"
 	"clinic-mgmt/internal/seed"
@@ -71,6 +72,7 @@ func serveFrontend(c *gin.Context) {
 func main() {
 	cfg := config.Load()
 	db := database.InitDB(cfg.DBDsn, cfg.DBDriver)
+	dbcompat.Init(db)
 
 	seed.Seed(db)
 

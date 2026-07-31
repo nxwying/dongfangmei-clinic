@@ -2,7 +2,7 @@
   <div class="login-container">
     <div class="login-card">
       <h2 class="login-title">{{ appName }}</h2>
-      <div v-if="licenseStatus && !licenseStatus.activated" style="text-align:center;margin:-8px 0 16px;font-size:13px">
+      <div v-if="false" style="text-align:center;margin:-8px 0 16px;font-size:13px">
         <span v-if="!licenseStatus.trial_expired" style="color:#e6a23c">试用期剩余 {{ licenseStatus.trial_remaining }} 天</span>
         <span v-else style="color:#f56c6c">试用期已结束，请激活系统</span>
       </div>

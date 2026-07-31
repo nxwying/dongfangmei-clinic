@@ -1,5 +1,5 @@
 // internal/model/models.go
-// Placeholder models — will be fully defined in subsequent tasks.
+// Domain models for the clinic management system.
 package model
 
 import "time"
@@ -20,7 +20,7 @@ type Role struct {
 	BaseModel
 	Name        string `gorm:"uniqueIndex;size:32;not null" json:"name"`
 	Description string `gorm:"size:256" json:"description"`
-	Permissions []byte `gorm:"type:jsonb" json:"permissions"`
+	Permissions []byte `gorm:"type:json" json:"permissions"`
 }
 
 type Customer struct {
@@ -33,7 +33,7 @@ type Customer struct {
 	Source     string      `gorm:"size:50" json:"source,omitempty"`
 	WechatID   string      `gorm:"size:100" json:"wechat_id,omitempty"`
 	Remark     string      `gorm:"type:text" json:"remark,omitempty"`
-	Tags       string      `gorm:"type:jsonb;default:'[]'" json:"tags,omitempty"`
+	Tags       string      `gorm:"type:json;default:'[]'" json:"tags,omitempty"`
 	Status     string      `gorm:"size:20;default:potential" json:"status"`
 	Membership *Membership `gorm:"foreignKey:CustomerID" json:"membership,omitempty"`
 }
@@ -182,7 +182,7 @@ type PackageTemplate struct {
 	BaseModel
 	Name           string  `gorm:"size:128;not null"`
 	Description    string  `gorm:"type:text"`
-	Items          string  `gorm:"type:jsonb"`
+	Items          string  `gorm:"type:json"`
 	TotalPrice     float64 `gorm:"type:decimal(12,2)" json:"price"`
 	DurationMonths int     `gorm:"default:12" json:"duration_months"`
 	SessionCount   int     `gorm:"default:1" json:"total_sessions"`
@@ -258,7 +258,7 @@ type MedicalRecord struct {
 	CreatedBy  uint      `json:"created_by"`
 	DoctorName string    `gorm:"size:64" json:"doctor_name"`
 	TemplateID  *uint      `json:"template_id,omitempty"`
-	Content    string    `gorm:"type:jsonb" json:"content"`
+	Content    string    `gorm:"type:json" json:"content"`
 	Status     string    `gorm:"size:20;default:draft" json:"status"`
 }
 
@@ -268,7 +268,7 @@ type MedicalRecordTemplate struct {
 	Name          string `gorm:"size:200;not null" json:"name"`
 	ProcedureName string `gorm:"size:200" json:"procedure_name"`
 	Category      string `gorm:"size:50" json:"category"`
-	Fields        string `gorm:"type:jsonb" json:"fields"`
+	Fields        string `gorm:"type:json" json:"fields"`
 	Description   string `gorm:"type:text" json:"description"`
 	IsActive      bool   `gorm:"default:true" json:"is_active"`
 	SortOrder     int    `gorm:"default:0" json:"sort_order"`
@@ -341,7 +341,7 @@ type CommissionResult struct {
 	YearMonth   string  `gorm:"size:7;not null;index" json:"year_month"` // 2026-07
 	TotalRevenue float64 `gorm:"type:decimal(12,2)" json:"total_revenue"`
 	TotalCommission float64 `gorm:"type:decimal(12,2)" json:"total_commission"`
-	Details     string  `gorm:"type:jsonb" json:"details"`
+	Details     string  `gorm:"type:json" json:"details"`
 	Status      string  `gorm:"size:20;default:draft" json:"status"` // draft / confirmed / paid
 }
 

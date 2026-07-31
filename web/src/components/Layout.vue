@@ -13,19 +13,6 @@
           <el-button @click="showNameDialog=false">取消</el-button>
           <el-button type="primary" :loading="savingName" @click="saveName">保存</el-button>
         
-
-<el-dialog v-model="showActivateDialog" title="激活系统" width="420px" append-to-body>
-  <div style="margin-bottom:16px">
-    <div style="font-size:13px;color:#909399;margin-bottom:4px">本机机器码（发给授权方）</div>
-    <code style="font-size:16px;font-weight:700;background:#f5f7fa;padding:6px 12px;border-radius:4px">{{ licenseStatus?.machine_code }}</code>
-  </div>
-  <el-input v-model="unlockCode" placeholder="输入解锁码" @keyup.enter="doActivate" size="large"/>
-  <template #footer>
-    <el-button @click="showActivateDialog=false">取消</el-button>
-    <el-button type="primary" :loading="activating" @click="doActivate">激活</el-button>
-  </template>
-</el-dialog>
-
 </template>
       </el-dialog>
       <el-dialog v-model="showThemeDialog" title="自定义🎨" width="500px" append-to-body>
@@ -198,8 +185,7 @@
           <el-menu-item index="/settings/users">员工管理</el-menu-item>
           <el-menu-item index="/settings/commission">提成规则</el-menu-item>
           <el-menu-item index="/settings/roles">角色管理</el-menu-item>
-          <el-menu-item index="/settings/license">授权管理</el-menu-item>
-          <el-menu-item index="/settings/training">培训认证</el-menu-item>
+                    <el-menu-item index="/settings/training">培训认证</el-menu-item>
           <el-menu-item index="/settings/tags">自动标签</el-menu-item>
           <el-menu-item index="/settings/backup">数据备份</el-menu-item>
           <el-menu-item index="/settings/audit-logs">操作日志</el-menu-item>
@@ -231,12 +217,7 @@
         </div>
       </el-header>
       <el-main style="background: #f0f2f5; padding: 20px;">
-        <div v-if="licenseStatus && !licenseStatus.activated" style="margin-bottom:12px;padding:10px 16px;background:#fdf6ec;border-radius:6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px">
-          <span>[未激活]</span>
-          <span>客户 <b>{{ licenseStatus.customer_count }}/{{ licenseStatus.customer_limit }}</b></span>
-          <span>病历 <b>{{ licenseStatus.record_count }}/{{ licenseStatus.record_limit }}</b></span>
-          <el-button size="small" type="warning" @click="showActivateDialog=true">激活</el-button>
-        </div>
+        
         <router-view />
       </el-main>
     </el-container>
@@ -259,10 +240,6 @@ const appName = ref('东芳美诊所管理系统')
 const isCollapse = ref(false)
 const showNameDialog = ref(false)
 const editName = ref('')
-const licenseStatus = ref<any>(null)
-const showActivateDialog = ref(false)
-const unlockCode = ref('')
-const activating = ref(false)
 const showThemeDialog = ref(false)
 const savingTheme = ref(false)
 
@@ -299,19 +276,7 @@ function applyTheme(t: ThemeConfig) {
 }
 
 async function checkStatus() {
-  try { const res = await api.get('/license/status'); licenseStatus.value = res.data } catch {}
-}
-async function doActivate() {
-  if (!unlockCode.value) return
-  activating.value = true
-  try {
-    const res = await api.post('/license/activate', { code: unlockCode.value })
-    window.alert(res.data.message || '激活成功')
-    showActivateDialog.value = false
-    await checkStatus()
-  } catch (e: any) { window.alert(e?.response?.data?.error || '激活失败') }
-  finally { activating.value = false }
-}
+  }
 
 async function saveTheme() {
   savingTheme.value = true

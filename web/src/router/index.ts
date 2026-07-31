@@ -123,12 +123,6 @@ const router = createRouter({
           meta: { requiresAuth: true, title: '角色管理' },
         },
         {
-          path: 'settings/license',
-          name: 'SettingsLicense',
-          component: () => import('../views/settings/License.vue'),
-          meta: { requiresAuth: true, title: '授权管理' },
-        },
-        {
           path: 'inventory',
           name: 'Inventory',
           component: () => import('../views/inventory/Index.vue'),
