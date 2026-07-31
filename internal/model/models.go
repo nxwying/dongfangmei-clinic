@@ -14,6 +14,7 @@ type User struct {
 	Phone        string `gorm:"size:20" json:"phone"`
 	Status       string `gorm:"size:20;default:active" json:"status"`
 	LastLoginAt  int64  `gorm:"default:0" json:"last_login_at"`
+	MustChangePassword bool     `gorm:"default:false" json:"must_change_password"`
 }
 
 type Role struct {

@@ -72,8 +72,18 @@ func StockIn(db *gorm.DB) gin.HandlerFunc {
 		var item model.InventoryItem
 		if err := db.First(&item, id).Error; err != nil { c.JSON(http.StatusNotFound, gin.H{"error":"不存在"});return }
 		newQty := item.Quantity + req.Quantity
-		db.Model(&item).Update("quantity", newQty)
-		db.Create(&model.InventoryLog{ItemID: uint(id), Type: "in", Quantity: req.Quantity, BalanceAfter: newQty, Note: req.Note, CreatedBy: userID})
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&item).Update("quantity", newQty).Error; err != nil {
+				return err
+			}
+			if err := tx.Create(&model.InventoryLog{ItemID: uint(id), Type: "in", Quantity: req.Quantity, BalanceAfter: newQty, Note: req.Note, CreatedBy: userID}).Error; err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "入库失败"})
+			return
+		}
 		system.WriteAuditLog(db, c, "stock_in", "inventory", uint(id), "入库 "+strconv.FormatFloat(req.Quantity,'f',2,64))
 		c.JSON(http.StatusOK, gin.H{"message": "入库成功", "quantity": newQty})
 	}
@@ -89,8 +99,18 @@ func StockOut(db *gorm.DB) gin.HandlerFunc {
 		if err := db.First(&item, id).Error; err != nil { c.JSON(http.StatusNotFound, gin.H{"error":"不存在"});return }
 		if item.Quantity < req.Quantity { c.JSON(http.StatusBadRequest, gin.H{"error":"库存不足"});return }
 		newQty := item.Quantity - req.Quantity
-		db.Model(&item).Update("quantity", newQty)
-		db.Create(&model.InventoryLog{ItemID: uint(id), Type: "out", Quantity: req.Quantity, BalanceAfter: newQty, Note: req.Note, CreatedBy: userID})
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&item).Update("quantity", newQty).Error; err != nil {
+				return err
+			}
+			if err := tx.Create(&model.InventoryLog{ItemID: uint(id), Type: "out", Quantity: req.Quantity, BalanceAfter: newQty, Note: req.Note, CreatedBy: userID}).Error; err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "出库失败"})
+			return
+		}
 		system.WriteAuditLog(db, c, "stock_out", "inventory", uint(id), "出库 "+strconv.FormatFloat(req.Quantity,'f',2,64))
 		c.JSON(http.StatusOK, gin.H{"message": "出库成功", "quantity": newQty})
 	}

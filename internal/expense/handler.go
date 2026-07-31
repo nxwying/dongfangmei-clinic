@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"clinic-mgmt/internal/middleware"
 	"clinic-mgmt/internal/model"
 	"clinic-mgmt/internal/system"
 
@@ -46,7 +47,12 @@ func ListExpenses(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		var expenses []model.Expense
-		query.Find(&expenses)
+		p := middleware.ParsePagination(c)
+		var total int64
+		query.Model(&model.Expense{}).Count(&total)
+		query.Offset(p.Offset()).Limit(p.PageSize).Find(&expenses)
+		c.JSON(http.StatusOK, middleware.PaginatedResult(expenses, total, p))
+		return
 		c.JSON(http.StatusOK, expenses)
 	}
 }

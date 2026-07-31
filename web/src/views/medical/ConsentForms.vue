@@ -96,10 +96,10 @@ const signData=ref<{patient:string;doctor:string}>({patient:'',doctor:''})
 
 async function searchCust(q:string){
   if(!q){
-    try{const r=await api.get('/customers',{params:{page_size:500}});custOpts.value=Array.isArray(r.data)?r.data:(r.data?.items||[])}catch(e){console.log(e)}
+    try{const r=await api.get('/customers',{params:{page_size:500}});custOpts.value=Array.isArray(r.data)?r.data:(r.data?.items||[])}catch(e){}
     return
   }
-  try{const r=await api.get('/customers',{params:{keyword:q}});custOpts.value=Array.isArray(r.data)?r.data:(r.data?.items||[])}catch(e){console.log(e)}
+  try{const r=await api.get('/customers',{params:{keyword:q}});custOpts.value=Array.isArray(r.data)?r.data:(r.data?.items||[])}catch(e){}
 }
 async function fetchData(){
   loading.value=true

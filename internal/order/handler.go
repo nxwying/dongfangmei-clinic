@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"clinic-mgmt/internal/middleware"
 	"clinic-mgmt/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -155,9 +156,12 @@ func ListOrders(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		var orders []model.Order
-		query.Preload("Customer").Preload("Items").Preload("Payments").Order("created_at DESC").Find(&orders)
+		p := middleware.ParsePagination(c)
+		var total int64
+		query.Model(&model.Order{}).Count(&total)
+		query.Preload("Customer").Preload("Items").Preload("Payments").Order("created_at DESC").Offset(p.Offset()).Limit(p.PageSize).Find(&orders)
 
-		c.JSON(http.StatusOK, orders)
+		c.JSON(http.StatusOK, middleware.PaginatedResult(orders, total, p))
 	}
 }
 

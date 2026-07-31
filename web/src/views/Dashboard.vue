@@ -509,42 +509,42 @@ onMounted(async ()=>{
       today.general=p.data.general||0
       today.profit=p.data.net_profit||0
     }
-  }catch(e){console.log(e)}
+  }catch(e){}
 
   // Yesterday for trend
   try{
     const y=await api.get('/reports/profit',{params:{date:yesterdayStr}})
     if(y.data)yesterday.revenue=y.data.total_revenue||0
-  }catch(e){console.log(e)}
+  }catch(e){}
 
   // Appointments
   try{
     loadingAppts.value=true
     const a=await api.get('/appointments',{params:{date:dateStr}})
     appts.value=Array.isArray(a.data)?a.data:[]
-  }catch(e){console.log(e)}
+  }catch(e){}
   finally{loadingAppts.value=false}
 
   // Week trend
   try{
     const w=await api.get('/reports/period',{params:{start_date:weekStart,end_date:weekEnd}})
     week.value=w.data?.daily_breakdown||[]
-  }catch(e){console.log(e)}
+  }catch(e){}
 
   // Expiring docs
-  try{expiringDocs.value=await getExpiringDocuments()}catch(e){console.log(e)}
+  try{expiringDocs.value=await getExpiringDocuments()}catch(e){}
 
   // New customers today
   try{
     const c=await api.get('/customers',{params:{start_date:dateStr,end_date:dateStr}})
 const custData=c.data;const custList=Array.isArray(custData)?custData:(custData?.data||[]);newCustomers.value=custList.length;todayCustomers.value=custList
-  }catch(e){console.log(e)}
+  }catch(e){}
 
   // Yesterday customers for trend
   try{
     const cy=await api.get('/customers',{params:{start_date:yesterdayStr,end_date:yesterdayStr}})
     const dy=cy.data;yesterdayCustomers.value=Array.isArray(dy)?dy.length:(dy?.data?.length||dy?.total||0)
-  }catch(e){console.log(e)}
+  }catch(e){}
 
 
   // Daily stats (refunds, recharge)
@@ -585,20 +585,20 @@ const custData=c.data;const custList=Array.isArray(custData)?custData:(custData?
   try{
     const f=await api.get('/followup/tasks',{params:{status:'pending',size:5}})
     followupTasks.value=Array.isArray(f.data)?f.data:(f.data?.items||[])
-  }catch(e){console.log(e)}
+  }catch(e){}
 
   // Low stock
   try{
     const inv=await api.get('/inventory/items')
     const items=Array.isArray(inv.data)?inv.data:(inv.data?.items||[])
     lowStockItems.value=items.filter((i:any)=>i.quantity<=i.min_stock)
-  }catch(e){console.log(e)}
+  }catch(e){}
 
   // Silent customers
   try{
     const s=await api.get('/marketing/dormant')
     silentCustomers.value=Array.isArray(s.data)?s.data:(s.data?.items||[])
-  }catch(e){console.log(e)}
+  }catch(e){}
 
   // Sales ranking - calculate from orders
   async function calcSalesRanking(){
@@ -669,7 +669,7 @@ const custData=c.data;const custList=Array.isArray(custData)?custData:(custData?
     // Weekly followups
     const fw=await api.get('/followup/tasks',{params:{start_date:weekStart,end_date:weekEnd}})
     weekFollowups.value=Array.isArray(fw.data)?fw.data.length:(fw.data?.total||0)
-  }catch(e){console.log(e)}
+  }catch(e){}
 })
 </script>
 

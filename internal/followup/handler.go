@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"clinic-mgmt/internal/middleware"
 	"clinic-mgmt/internal/model"
 	"clinic-mgmt/internal/system"
 
@@ -58,9 +59,13 @@ func ListTasks(db *gorm.DB) gin.HandlerFunc {
 			query = query.Where("assigned_to = ?", a)
 		}
 		var tasks []model.FollowUpTask
-		query.Find(&tasks)
-		c.JSON(http.StatusOK, tasks)
-	}
+		p := middleware.ParsePagination(c)
+		var total int64
+		query.Model(&model.FollowUpTask{}).Count(&total)
+		query.Offset(p.Offset()).Limit(p.PageSize).Find(&tasks)
+		c.JSON(http.StatusOK, middleware.PaginatedResult(tasks, total, p))
+		return
+			}
 }
 
 func CompleteTask(db *gorm.DB) gin.HandlerFunc {

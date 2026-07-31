@@ -84,11 +84,12 @@ func Seed(db *gorm.DB) {
 	db.Where("name = ?", "admin").First(&adminRole)
 
 	db.Create(&model.User{
-		Username:     "admin",
-		PasswordHash: string(hash),
-		RealName:     "系统管理员",
-		RoleID:       adminRole.ID,
-		Status:       "active",
+		Username:           "admin",
+		PasswordHash:       string(hash),
+		RealName:           "系统管理员",
+		RoleID:             adminRole.ID,
+		Status:             "active",
+		MustChangePassword: true,
 	})
 
 	log.Println("Seed complete: 5 roles + admin user created")

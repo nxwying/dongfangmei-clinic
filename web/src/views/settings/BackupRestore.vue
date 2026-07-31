@@ -211,7 +211,7 @@ async function loadBackups() {
     const data = await listBackups()
     backups.value = Array.isArray(data) ? data : []
   } catch (e: any) {
-    console.error('加载备份列表失败', e)
+    
   } finally {
     loading.value = false
   }
@@ -222,7 +222,7 @@ async function loadSettings() {
     const data = await getBackupSettings()
     if (data) Object.assign(autoSettings, data)
   } catch (e: any) {
-    console.error('加载设置失败', e)
+    
   }
 }
 
@@ -230,7 +230,7 @@ async function saveSettings() {
   try {
     await saveBackupSettings({ ...autoSettings })
   } catch (e: any) {
-    console.error('保存设置失败', e)
+    
   }
 }
 

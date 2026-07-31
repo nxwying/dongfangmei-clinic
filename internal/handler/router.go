@@ -39,7 +39,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	api := r.Group("/api/v1")
 
 	// Public routes
-	api.POST("/auth/login", authHandler.Login(db))
+	api.POST("/auth/login", middleware.LoginRateLimit(), authHandler.Login(db))
 	api.GET("/settings/system-config", settings.GetSystemConfig())
 
 	// Protected routes
@@ -48,6 +48,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 	{
 		// Profile
 		protected.GET("/auth/profile", authHandler.GetProfile(db))
+		protected.POST("/auth/change-password", authHandler.ChangePassword(db))
 
 		// Users & Roles (admin only)
 	protected.GET("/users", system.ListUsers(db))

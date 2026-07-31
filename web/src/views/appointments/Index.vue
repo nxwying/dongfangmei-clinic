@@ -143,7 +143,7 @@ async function loadData() {
     if (statusFilter.value) params.status = statusFilter.value
     const r = await api.get('/appointments', { params })
     appointments.value = Array.isArray(r.data) ? r.data : []
-  } catch (e) { appointments.value = []; console.error('加载预约失败', e) }
+  } catch (e) { appointments.value = [];  }
   finally { loading.value = false }
 }
 

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"clinic-mgmt/internal/middleware"
 	"clinic-mgmt/internal/model"
 
 	"github.com/gin-gonic/gin"
@@ -49,12 +50,15 @@ func ListAppointments(db *gorm.DB) gin.HandlerFunc {
 			query = query.Where("status = ?", status)
 		}
 
+		p := middleware.ParsePagination(c)
+		var total int64
+		query.Model(&model.Appointment{}).Count(&total)
 		var appointments []model.Appointment
-		if err := query.Find(&appointments).Error; err != nil {
+		if err := query.Offset(p.Offset()).Limit(p.PageSize).Find(&appointments).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 			return
 		}
-		c.JSON(http.StatusOK, appointments)
+		c.JSON(http.StatusOK, middleware.PaginatedResult(appointments, total, p))
 	}
 }
 

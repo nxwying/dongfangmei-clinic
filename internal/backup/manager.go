@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"clinic-mgmt/internal/config"
@@ -111,7 +112,7 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-// exportSQLiteDump writes a simple SQL representation of key tables for portability.
+// exportSQLiteDump writes a SQL representation of key tables with proper escaping.
 func exportSQLiteDump(db *gorm.DB, filepath string) {
 	f, err := os.Create(filepath)
 	if err != nil {
@@ -119,43 +120,38 @@ func exportSQLiteDump(db *gorm.DB, filepath string) {
 	}
 	defer f.Close()
 
-	tables := []string{"users", "roles", "customers", "memberships", "orders", "order_items", "payments"}
+	tables := []string{"customers", "memberships", "member_packages", "orders", "order_items", "payments", "appointments"}
 	for _, t := range tables {
 		var rows []map[string]interface{}
 		db.Table(t).Find(&rows)
 		for _, row := range rows {
-			cols := []string{}
-			vals := []interface{}{}
+			cols := make([]string, 0, len(row))
+			vals := make([]string, 0, len(row))
 			for k, v := range row {
 				cols = append(cols, k)
-				vals = append(vals, v)
+				vals = append(vals, sqlEscape(v))
 			}
-			placeholders := ""
-			for i := range vals {
-				if i > 0 {
-					placeholders += ","
-				}
-				switch vals[i].(type) {
-				case string:
-					placeholders += fmt.Sprintf("'%v'", vals[i])
-				default:
-					placeholders += fmt.Sprintf("%v", vals[i])
-				}
-			}
-			fmt.Fprintf(f, "INSERT INTO %s (%s) VALUES (%s);\n", t, joinStrings(cols, ","), placeholders)
+			fmt.Fprintf(f, "INSERT INTO %s (%s) VALUES (%s);\n", t, strings.Join(cols, ","), strings.Join(vals, ","))
 		}
 	}
 }
 
-func joinStrings(ss []string, sep string) string {
-	out := ""
-	for i, s := range ss {
-		if i > 0 {
-			out += sep
-		}
-		out += s
+// sqlEscape converts a Go value to a properly escaped SQL literal.
+func sqlEscape(v interface{}) string {
+	if v == nil {
+		return "NULL"
 	}
-	return out
+	switch val := v.(type) {
+	case string:
+		return "'" + strings.ReplaceAll(val, "'", "''") + "'"
+	case bool:
+		if val {
+			return "1"
+		}
+		return "0"
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // DeleteBackup deletes a backup file and its database record.

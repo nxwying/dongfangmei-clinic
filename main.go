@@ -14,6 +14,7 @@ import (
 	"clinic-mgmt/internal/dbcompat"
 	"clinic-mgmt/internal/backup"
 	"clinic-mgmt/internal/handler"
+	"clinic-mgmt/internal/middleware"
 	"clinic-mgmt/internal/seed"
 
 	"github.com/gin-gonic/gin"
@@ -77,6 +78,8 @@ func main() {
 	seed.Seed(db)
 
 	r := gin.Default()
+
+	r.Use(middleware.CORS())
 
 	// API routes
 	handler.RegisterRoutes(r, db, cfg)

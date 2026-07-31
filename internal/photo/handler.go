@@ -68,8 +68,15 @@ if photoType != "before" && photoType != "after" && photoType != "during" && pho
 		}
 		defer file.Close()
 
-		fileType := header.Header.Get("Content-Type")
-		if _, ok := photoAllowedTypes[fileType]; !ok {
+		// Verify file type by reading magic bytes (not trusting Content-Type header)
+		fileHead := make([]byte, 512)
+		n, _ := file.Read(fileHead)
+		fileHead = fileHead[:n]
+		// Seek back to start so io.Copy gets the full file
+		file.Seek(0, 0)
+
+		fileType := detectImageType(fileHead)
+		if fileType == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "仅支持 JPG/PNG/WebP 格式"})
 			return
 		}
@@ -77,7 +84,7 @@ if photoType != "before" && photoType != "after" && photoType != "during" && pho
 		dir := filepath.Join(photoBasePath, fmt.Sprintf("customer_%d", customerID))
 		os.MkdirAll(dir, 0755)
 
-		ext := filepath.Ext(header.Filename)
+		ext := "." + photoAllowedTypes[fileType]
 		name := fmt.Sprintf("%s_%s_%s%s", time.Now().Format("20060102_150405"), photoType, strconv.FormatUint(customerID, 10), ext)
 		path := filepath.Join(dir, name)
 
@@ -162,4 +169,20 @@ func Download(db *gorm.DB) gin.HandlerFunc {
 		c.Header("Content-Type", p.FileType)
 		c.File(absPath)
 	}
+}
+
+
+// detectImageType checks magic bytes to determine the real image format.
+func detectImageType(head []byte) string {
+	if len(head) >= 3 && head[0] == 0xFF && head[1] == 0xD8 && head[2] == 0xFF {
+		return "image/jpeg"
+	}
+	if len(head) >= 8 && head[0] == 0x89 && head[1] == 0x50 && head[2] == 0x4E && head[3] == 0x47 {
+		return "image/png"
+	}
+	if len(head) >= 12 && head[0] == 0x52 && head[1] == 0x49 && head[2] == 0x46 && head[3] == 0x46 &&
+		head[8] == 0x57 && head[9] == 0x45 && head[10] == 0x42 && head[11] == 0x50 {
+		return "image/webp"
+	}
+	return ""
 }

@@ -303,7 +303,7 @@ async function load(){
     custTrend.value=ct.data||[]
 
     loaded.value=true
-  }catch(e){console.error(e)}
+  }catch(e){}
   finally{loading.value=false}
 }
 onMounted(load)

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"clinic-mgmt/internal/middleware"
 	"clinic-mgmt/internal/model"
 	"clinic-mgmt/internal/system"
 
@@ -61,9 +62,12 @@ func ListAll(db *gorm.DB) gin.HandlerFunc {
 		if q := c.Query("q"); q != "" {
 			query = query.Where("customer_id IN (SELECT id FROM customers WHERE name LIKE ? OR phone LIKE ?)", "%"+q+"%", "%"+q+"%")
 		}
+		p := middleware.ParsePagination(c)
+		var total int64
+		query.Model(&model.MedicalRecord{}).Count(&total)
 		var records []model.MedicalRecord
-		query.Find(&records)
-		c.JSON(http.StatusOK, records)
+		query.Offset(p.Offset()).Limit(p.PageSize).Find(&records)
+		c.JSON(http.StatusOK, middleware.PaginatedResult(records, total, p))
 	}
 }
 
