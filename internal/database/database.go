@@ -58,6 +58,7 @@ func InitDB(dsn string, driver string) *gorm.DB {
 		&model.ConsentForm{},
 		&model.InventoryBatch{},
 		&model.BatchUsage{},
+		&model.Consultation{},
 	)
 	if err != nil {
 		log.Fatalf("failed to migrate database: %v", err)

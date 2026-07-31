@@ -115,6 +115,12 @@
             <el-icon><Wallet /></el-icon>
             <span>会员管理</span>
           </el-menu-item>
+          <el-menu-item index="/compare">
+            效果对比
+          </el-menu-item>
+          <el-menu-item index="/consultation">
+            咨询跟单
+          </el-menu-item>
           <el-menu-item index="/marketing">
             <el-icon><Promotion /></el-icon>
             <span>营销工具</span>

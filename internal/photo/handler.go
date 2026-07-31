@@ -186,3 +186,40 @@ func detectImageType(head []byte) string {
 	}
 	return ""
 }
+
+// GroupedPhotos returns a customer's photos grouped by body_part,
+// with before/after pairs sorted by date for comparison viewing.
+func GroupedPhotos(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		customerIDStr := c.Param("id")
+		customerID, err := strconv.ParseUint(customerIDStr, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "无效的客户ID"})
+			return
+		}
+
+		var photos []model.Photo
+		db.Where("customer_id = ?", customerID).Order("body_part ASC, photo_type ASC, created_at ASC").Find(&photos)
+
+		// Group by body_part
+		groups := map[string][]model.Photo{}
+		for _, p := range photos {
+			bp := p.BodyPart
+			if bp == "" {
+				bp = "未分类"
+			}
+			groups[bp] = append(groups[bp], p)
+		}
+
+		type GroupResult struct {
+			BodyPart string        `json:"body_part"`
+			Photos   []model.Photo `json:"photos"`
+		}
+		result := make([]GroupResult, 0)
+		for bp, ps := range groups {
+			result = append(result, GroupResult{BodyPart: bp, Photos: ps})
+		}
+
+		c.JSON(http.StatusOK, result)
+	}
+}

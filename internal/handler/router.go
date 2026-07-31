@@ -24,6 +24,7 @@ import (
 	"clinic-mgmt/internal/training"
 	"clinic-mgmt/internal/analysis"
 	"clinic-mgmt/internal/consent"
+	"clinic-mgmt/internal/consultation"
 	"clinic-mgmt/internal/label"
 	"clinic-mgmt/internal/document"
 	"clinic-mgmt/internal/marketing"
@@ -180,6 +181,7 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.POST("/photos", photo.Upload(db))
 		api.GET("/photos/:id/download", photo.Download(db))
 		protected.DELETE("/photos/:id", photo.Delete(db))
+		protected.GET("/customers/:id/photos/grouped", photo.GroupedPhotos(db))
 
 		// Tag Rules
 		protected.GET("/tag-rules", label.ListRules(db))
@@ -234,6 +236,13 @@ func RegisterRoutes(r *gin.Engine, db *gorm.DB, cfg *config.Config) {
 		protected.POST("/training/plans", training.CreatePlan(db))
 		protected.PUT("/training/plans/:id", training.UpdatePlan(db))
 		protected.DELETE("/training/plans/:id", training.DeletePlan(db))
+
+		// Consultation tracking
+		protected.GET("/consultations", consultation.List(db))
+		protected.POST("/consultations", consultation.Create(db))
+		protected.PUT("/consultations/:id", consultation.Update(db))
+		protected.DELETE("/consultations/:id", middleware.RequirePermission("admin"), consultation.Delete(db))
+		protected.GET("/consultations/stats", consultation.Stats(db))
 
 		// Analysis
 		protected.GET("/analysis/ltv", analysis.LTV(db))

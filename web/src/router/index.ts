@@ -135,6 +135,18 @@ const router = createRouter({
           meta: { requiresAuth: true, title: '回访管理' },
         },
         {
+          path: 'compare',
+          name: 'PhotoCompare',
+          component: () => import('../views/compare/Index.vue'),
+          meta: { requiresAuth: true, title: '效果对比' },
+        },
+        {
+          path: 'consultation',
+          name: 'Consultation',
+          component: () => import('../views/consultation/Index.vue'),
+          meta: { requiresAuth: true, title: '咨询跟单' },
+        },
+        {
           path: 'marketing',
           name: 'Marketing',
           component: () => import('../views/marketing/Index.vue'),

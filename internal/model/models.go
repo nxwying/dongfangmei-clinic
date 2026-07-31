@@ -441,3 +441,25 @@ MedicalRecordID *uint `json:"medical_record_id,omitempty"`
 	DoctorName  string  `gorm:"size:100" json:"doctor_name"`
 	Note        string  `gorm:"type:text" json:"note"`
 }
+
+// ========== 咨询跟单 ==========
+// Consultation tracks pre-sale consultation interactions and deal pipeline.
+type Consultation struct {
+	BaseModel
+	CustomerID      uint    `gorm:"not null;index" json:"customer_id"`
+	Customer        *Customer `gorm:"foreignKey:CustomerID" json:"customer,omitempty"`
+	ConsultantID    *uint   `json:"consultant_id"`
+	ContactDate     string  `gorm:"size:10;not null;index" json:"contact_date"`
+	ContactMethod   string  `gorm:"size:20" json:"contact_method"`     // wechat / phone / in-store / video
+	Content         string  `gorm:"type:text" json:"content"`          // 沟通内容
+	CustomerConcern string  `gorm:"type:text" json:"customer_concern"`  // 客户顾虑
+	IntentionLevel  string  `gorm:"size:2;default:C" json:"intention_level"` // A(高意向) B(中) C(低) D(无意向)
+	InterestedItems string  `gorm:"type:text" json:"interested_items"`  // 感兴趣的项目
+	QuotedAmount    float64 `gorm:"type:decimal(12,2);default:0" json:"quoted_amount"`
+	EstimatedAmount float64 `gorm:"type:decimal(12,2);default:0" json:"estimated_amount"`
+	Status          string  `gorm:"size:20;default:pending" json:"status"` // pending / won / lost / follow-up
+	NextContactDate string  `gorm:"size:10" json:"next_contact_date"`
+	NextAction      string  `gorm:"type:text" json:"next_action"`
+	Remark          string  `gorm:"type:text" json:"remark"`
+	CreatedBy       uint    `json:"created_by"`
+}
